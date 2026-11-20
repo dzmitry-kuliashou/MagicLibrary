@@ -5,19 +5,21 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Core", "src\MagicLibrary.Core\MagicLibrary.Core.csproj", "{2A53DCFB-C329-4528-933F-C696EC4A357C}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "backend", "backend", "{AF16E425-C613-40E2-9A8B-8649C85DB4D4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Contract", "src\MagicLibrary.Contract\MagicLibrary.Contract.csproj", "{E9D9881D-361D-4AE0-A896-22DA38EF28D5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Core", "src\backend\MagicLibrary.Core\MagicLibrary.Core.csproj", "{2A53DCFB-C329-4528-933F-C696EC4A357C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Application", "src\MagicLibrary.Application\MagicLibrary.Application.csproj", "{C923361B-60B5-431C-8657-66374107D375}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Contract", "src\backend\MagicLibrary.Contract\MagicLibrary.Contract.csproj", "{E9D9881D-361D-4AE0-A896-22DA38EF28D5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Infrastructure", "src\MagicLibrary.Infrastructure\MagicLibrary.Infrastructure.csproj", "{00F66442-D4A5-4E57-BC0C-75A4930B263A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Application", "src\backend\MagicLibrary.Application\MagicLibrary.Application.csproj", "{C923361B-60B5-431C-8657-66374107D375}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Api", "src\MagicLibrary.Api\MagicLibrary.Api.csproj", "{18A07603-3DF3-4CEF-8C92-80552C883B1D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Infrastructure", "src\backend\MagicLibrary.Infrastructure\MagicLibrary.Infrastructure.csproj", "{00F66442-D4A5-4E57-BC0C-75A4930B263A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.UnitTests", "src\MagicLibrary.UnitTests\MagicLibrary.UnitTests.csproj", "{7DCE4CE6-7120-4354-8D4F-44DF7A48A14E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.Api", "src\backend\MagicLibrary.Api\MagicLibrary.Api.csproj", "{18A07603-3DF3-4CEF-8C92-80552C883B1D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.IntegrationTests", "src\MagicLibrary.IntegrationTests\MagicLibrary.IntegrationTests.csproj", "{18A82D40-0236-4952-9848-D2593465F0AA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.UnitTests", "src\backend\MagicLibrary.UnitTests\MagicLibrary.UnitTests.csproj", "{7DCE4CE6-7120-4354-8D4F-44DF7A48A14E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MagicLibrary.IntegrationTests", "src\backend\MagicLibrary.IntegrationTests\MagicLibrary.IntegrationTests.csproj", "{18A82D40-0236-4952-9848-D2593465F0AA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -118,12 +120,13 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{2A53DCFB-C329-4528-933F-C696EC4A357C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{E9D9881D-361D-4AE0-A896-22DA38EF28D5} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{C923361B-60B5-431C-8657-66374107D375} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{00F66442-D4A5-4E57-BC0C-75A4930B263A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{18A07603-3DF3-4CEF-8C92-80552C883B1D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{7DCE4CE6-7120-4354-8D4F-44DF7A48A14E} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{18A82D40-0236-4952-9848-D2593465F0AA} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{AF16E425-C613-40E2-9A8B-8649C85DB4D4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{2A53DCFB-C329-4528-933F-C696EC4A357C} = {AF16E425-C613-40E2-9A8B-8649C85DB4D4}
+		{E9D9881D-361D-4AE0-A896-22DA38EF28D5} = {AF16E425-C613-40E2-9A8B-8649C85DB4D4}
+		{C923361B-60B5-431C-8657-66374107D375} = {AF16E425-C613-40E2-9A8B-8649C85DB4D4}
+		{00F66442-D4A5-4E57-BC0C-75A4930B263A} = {AF16E425-C613-40E2-9A8B-8649C85DB4D4}
+		{18A07603-3DF3-4CEF-8C92-80552C883B1D} = {AF16E425-C613-40E2-9A8B-8649C85DB4D4}
+		{7DCE4CE6-7120-4354-8D4F-44DF7A48A14E} = {AF16E425-C613-40E2-9A8B-8649C85DB4D4}
+		{18A82D40-0236-4952-9848-D2593465F0AA} = {AF16E425-C613-40E2-9A8B-8649C85DB4D4}
 	EndGlobalSection
 EndGlobal
