@@ -14,6 +14,20 @@ public sealed class Conversation : AggregateRoot
         UpdatedAt = createdAt;
     }
 
+    private Conversation(
+        Guid id,
+        string name,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt,
+        IEnumerable<Message> messages)
+        : base(id)
+    {
+        Name = name;
+        CreatedAt = createdAt;
+        UpdatedAt = updatedAt;
+        _messages.AddRange(messages);
+    }
+
     public string Name { get; }
 
     public DateTimeOffset CreatedAt { get; }
@@ -24,21 +38,32 @@ public sealed class Conversation : AggregateRoot
 
     public static Conversation Create(string name, DateTimeOffset createdAt, string systemMessageContent)
     {
-        Guard.Against.NullOrWhiteSpace(name, nameof(name));
-        Guard.Against.Default(createdAt, nameof(createdAt));
-        Guard.Against.NullOrWhiteSpace(systemMessageContent, nameof(systemMessageContent));
+        Guard.Against.NullOrWhiteSpace(name);
+        Guard.Against.Default(createdAt);
+        Guard.Against.NullOrWhiteSpace(systemMessageContent);
 
         var conversation = new Conversation(name, createdAt);
-        conversation._messages.Add(new Message(MessageRole.System, systemMessageContent, []));
+        conversation._messages.Add(Message.Create(MessageRole.System, systemMessageContent, []));
         return conversation;
+    }
+
+    internal static Conversation Reconstitute(
+        Guid id,
+        string name,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt,
+        IEnumerable<Message> messages)
+    {
+        // Persisted state is trusted; write-side APIs validate new aggregates.
+        return new Conversation(id, name, createdAt, updatedAt, messages);
     }
 
     public void AddUserMessage(string content, DateTimeOffset updatedAt)
     {
-        Guard.Against.NullOrWhiteSpace(content, nameof(content));
-        Guard.Against.Default(updatedAt, nameof(updatedAt));
+        Guard.Against.NullOrWhiteSpace(content);
+        Guard.Against.Default(updatedAt);
 
-        _messages.Add(new Message(MessageRole.User, content, []));
+        _messages.Add(Message.Create(MessageRole.User, content, []));
         UpdatedAt = updatedAt;
     }
 
@@ -47,11 +72,11 @@ public sealed class Conversation : AggregateRoot
         IEnumerable<SourceReference> sourceReferences,
         DateTimeOffset updatedAt)
     {
-        Guard.Against.NullOrWhiteSpace(content, nameof(content));
-        Guard.Against.Null(sourceReferences, nameof(sourceReferences));
-        Guard.Against.Default(updatedAt, nameof(updatedAt));
+        Guard.Against.NullOrWhiteSpace(content);
+        Guard.Against.Null(sourceReferences);
+        Guard.Against.Default(updatedAt);
 
-        _messages.Add(new Message(MessageRole.Assistant, content, sourceReferences));
+        _messages.Add(Message.Create(MessageRole.Assistant, content, sourceReferences));
         UpdatedAt = updatedAt;
     }
 }

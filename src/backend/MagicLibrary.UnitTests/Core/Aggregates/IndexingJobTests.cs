@@ -28,6 +28,32 @@ public sealed class IndexingJobTests
     }
 
     [Fact]
+    public void Reconstitute_FailedAttempt_RestoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var bookId = Guid.NewGuid();
+        var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.FromHours(-5));
+        var completedAt = startedAt.AddMinutes(2);
+
+        var job = IndexingJob.Reconstitute(
+            id,
+            bookId,
+            IndexingJobStatus.Failed,
+            startedAt,
+            completedAt,
+            "Indexing failed.");
+
+        Assert.Equal(id, job.Id);
+        Assert.Equal(bookId, job.BookId);
+        Assert.Equal(IndexingJobStatus.Failed, job.Status);
+        Assert.Equal(startedAt, job.StartedAt);
+        Assert.Equal(startedAt.Offset, job.StartedAt!.Value.Offset);
+        Assert.Equal(completedAt, job.CompletedAt);
+        Assert.Equal(completedAt.Offset, job.CompletedAt!.Value.Offset);
+        Assert.Equal("Indexing failed.", job.FailureMessage);
+    }
+
+    [Fact]
     public void Start_PendingAttempt_RecordsStartTime()
     {
         var job = IndexingJob.Create(Guid.NewGuid());

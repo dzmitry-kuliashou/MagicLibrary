@@ -18,5 +18,6 @@
     <ProjectReference Include="..\MagicLibrary.Core\MagicLibrary.Core.csproj" />
     <ProjectReference Include="..\MagicLibrary.Application\MagicLibrary.Application.csproj" />
     <ProjectReference Include="..\MagicLibrary.Api\MagicLibrary.Api.csproj" />
+    <ProjectReference Include="..\MagicLibrary.Infrastructure\MagicLibrary.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

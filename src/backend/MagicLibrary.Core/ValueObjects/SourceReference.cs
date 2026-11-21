@@ -22,9 +22,9 @@ public sealed record SourceReference
 
     public static SourceReference Create(Guid bookId, string bookTitle, int pageNumber, Guid? chunkId = null)
     {
-        Guard.Against.Default(bookId, nameof(bookId));
-        Guard.Against.NullOrWhiteSpace(bookTitle, nameof(bookTitle));
-        Guard.Against.NegativeOrZero(pageNumber, nameof(pageNumber));
+        Guard.Against.Default(bookId);
+        Guard.Against.NullOrWhiteSpace(bookTitle);
+        Guard.Against.NegativeOrZero(pageNumber);
         Guard.Against.InvalidInput(
             chunkId,
             nameof(chunkId),

@@ -11,10 +11,18 @@ public enum MessageRole
 
 public sealed record Message
 {
-    internal Message(MessageRole role, string content, IEnumerable<SourceReference> sourceReferences)
+    public static Message Create(
+        MessageRole role,
+        string content,
+        IEnumerable<SourceReference> sourceReferences)
     {
-        Guard.Against.NullOrWhiteSpace(content, nameof(content));
-        Guard.Against.Null(sourceReferences, nameof(sourceReferences));
+        return new Message(role, content, sourceReferences);
+    }
+
+    private Message(MessageRole role, string content, IEnumerable<SourceReference> sourceReferences)
+    {
+        Guard.Against.NullOrWhiteSpace(content);
+        Guard.Against.Null(sourceReferences);
 
         Role = role;
         Content = content;

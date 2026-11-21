@@ -29,6 +29,28 @@ public sealed class Book : AggregateRoot
         IndexingStatus = BookIndexingStatus.Pending;
     }
 
+    private Book(
+        Guid id,
+        string sourceFileName,
+        string title,
+        string author,
+        string contentHash,
+        DateTimeOffset addedAt,
+        IEnumerable<string> keywords,
+        DateTimeOffset? indexedAt,
+        BookIndexingStatus indexingStatus)
+        : base(id)
+    {
+        SourceFileName = sourceFileName;
+        Title = title;
+        Author = author;
+        ContentHash = contentHash;
+        AddedAt = addedAt;
+        _keywords.UnionWith(keywords);
+        IndexedAt = indexedAt;
+        IndexingStatus = indexingStatus;
+    }
+
     public string SourceFileName { get; }
 
     public string Title { get; private set; }
@@ -52,19 +74,43 @@ public sealed class Book : AggregateRoot
         string contentHash,
         DateTimeOffset addedAt)
     {
-        Guard.Against.NullOrWhiteSpace(sourceFileName, nameof(sourceFileName));
-        Guard.Against.NullOrWhiteSpace(title, nameof(title));
-        Guard.Against.Null(author, nameof(author));
-        Guard.Against.NullOrWhiteSpace(contentHash, nameof(contentHash));
-        Guard.Against.Default(addedAt, nameof(addedAt));
+        Guard.Against.NullOrWhiteSpace(sourceFileName);
+        Guard.Against.NullOrWhiteSpace(title);
+        Guard.Against.Null(author);
+        Guard.Against.NullOrWhiteSpace(contentHash);
+        Guard.Against.Default(addedAt);
 
         return new Book(sourceFileName, title, author, contentHash, addedAt);
     }
 
+    internal static Book Reconstitute(
+        Guid id,
+        string sourceFileName,
+        string title,
+        string author,
+        string contentHash,
+        DateTimeOffset addedAt,
+        IEnumerable<string> keywords,
+        DateTimeOffset? indexedAt,
+        BookIndexingStatus indexingStatus)
+    {
+        // Persisted state is trusted; write-side APIs validate new aggregates.
+        return new Book(
+            id,
+            sourceFileName,
+            title,
+            author,
+            contentHash,
+            addedAt,
+            keywords,
+            indexedAt,
+            indexingStatus);
+    }
+
     public void UpdateMetadata(string title, string author)
     {
-        Guard.Against.NullOrWhiteSpace(title, nameof(title));
-        Guard.Against.Null(author, nameof(author));
+        Guard.Against.NullOrWhiteSpace(title);
+        Guard.Against.Null(author);
 
         Title = title;
         Author = author;
@@ -72,7 +118,7 @@ public sealed class Book : AggregateRoot
 
     public void AddKeywords(IEnumerable<string> keywords)
     {
-        Guard.Against.Null(keywords, nameof(keywords));
+        Guard.Against.Null(keywords);
         _keywords.UnionWith(keywords);
     }
 
@@ -84,7 +130,7 @@ public sealed class Book : AggregateRoot
 
     public void MarkIndexed(DateTimeOffset indexedAt)
     {
-        Guard.Against.Default(indexedAt, nameof(indexedAt));
+        Guard.Against.Default(indexedAt);
         IndexingStatus = BookIndexingStatus.Indexed;
         IndexedAt = indexedAt;
     }

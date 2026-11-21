@@ -44,6 +44,51 @@ public sealed class ConversationTests
             "System instructions"));
     }
 
+    [Fact]
+    public void Reconstitute_PersistedState_RestoresConversationAndNestedMessages()
+    {
+        var id = Guid.NewGuid();
+        var bookId = Guid.NewGuid();
+        var chunkId = Guid.NewGuid();
+        var createdAt = new DateTimeOffset(2026, 4, 5, 6, 7, 8, TimeSpan.FromHours(-5));
+        var updatedAt = createdAt.AddMinutes(2);
+        var messages = new[]
+        {
+            Message.Create(MessageRole.System, "System instructions", []),
+            Message.Create(MessageRole.User, "Question", []),
+            Message.Create(
+                MessageRole.Assistant,
+                "Answer",
+                [SourceReference.Create(bookId, "Book title", 4, chunkId)])
+        };
+
+        var conversation = Conversation.Reconstitute(
+            id,
+            "Research",
+            createdAt,
+            updatedAt,
+            messages);
+
+        Assert.Equal(id, conversation.Id);
+        Assert.Equal("Research", conversation.Name);
+        Assert.Equal(createdAt, conversation.CreatedAt);
+        Assert.Equal(createdAt.Offset, conversation.CreatedAt.Offset);
+        Assert.Equal(updatedAt, conversation.UpdatedAt);
+        Assert.Equal(updatedAt.Offset, conversation.UpdatedAt.Offset);
+        Assert.Equal(3, conversation.Messages.Count);
+        Assert.Equal(MessageRole.System, conversation.Messages[0].Role);
+        Assert.Equal("System instructions", conversation.Messages[0].Content);
+        Assert.Equal(MessageRole.User, conversation.Messages[1].Role);
+        Assert.Equal("Question", conversation.Messages[1].Content);
+        Assert.Equal(MessageRole.Assistant, conversation.Messages[2].Role);
+        Assert.Equal("Answer", conversation.Messages[2].Content);
+        var sourceReference = Assert.Single(conversation.Messages[2].SourceReferences);
+        Assert.Equal(bookId, sourceReference.BookId);
+        Assert.Equal("Book title", sourceReference.BookTitle);
+        Assert.Equal(4, sourceReference.PageNumber);
+        Assert.Equal(chunkId, sourceReference.ChunkId);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

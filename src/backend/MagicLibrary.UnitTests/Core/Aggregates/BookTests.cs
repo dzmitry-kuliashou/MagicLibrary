@@ -24,6 +24,39 @@ public sealed class BookTests
     }
 
     [Fact]
+    public void Reconstitute_PersistedState_RestoresAllFields()
+    {
+        var id = Guid.NewGuid();
+        var addedAt = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.FromHours(-5));
+        var indexedAt = new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.FromHours(-5));
+
+        var book = Book.Reconstitute(
+            id,
+            "book.pdf",
+            "Title",
+            "Author",
+            "content-hash",
+            addedAt,
+            ["semantic", "search"],
+            indexedAt,
+            BookIndexingStatus.Indexed);
+
+        Assert.Equal(id, book.Id);
+        Assert.Equal("book.pdf", book.SourceFileName);
+        Assert.Equal("Title", book.Title);
+        Assert.Equal("Author", book.Author);
+        Assert.Equal(2, book.Keywords.Count);
+        Assert.Contains("semantic", book.Keywords);
+        Assert.Contains("search", book.Keywords);
+        Assert.Equal("content-hash", book.ContentHash);
+        Assert.Equal(addedAt, book.AddedAt);
+        Assert.Equal(addedAt.Offset, book.AddedAt.Offset);
+        Assert.Equal(indexedAt, book.IndexedAt);
+        Assert.Equal(indexedAt.Offset, book.IndexedAt!.Value.Offset);
+        Assert.Equal(BookIndexingStatus.Indexed, book.IndexingStatus);
+    }
+
+    [Fact]
     public void UpdateMetadata_ValidValues_UpdatesTitleAndAuthor()
     {
         var book = CreateBook();
