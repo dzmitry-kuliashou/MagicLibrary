@@ -9,15 +9,29 @@ public sealed class DocumentChunk : AggregateRoot
         int chunkIndex,
         int pageNumber,
         string content,
-        float[]? embedding,
-        string? embeddingProvider,
-        string? embeddingModel)
+        float[] embedding,
+        string embeddingProvider,
+        string embeddingModel)
+        : this(Guid.NewGuid(), bookId, chunkIndex, pageNumber, content, embedding, embeddingProvider, embeddingModel)
+    {
+    }
+
+    private DocumentChunk(
+        Guid id,
+        Guid bookId,
+        int chunkIndex,
+        int pageNumber,
+        string content,
+        float[] embedding,
+        string embeddingProvider,
+        string embeddingModel)
+        : base(id)
     {
         BookId = bookId;
         ChunkIndex = chunkIndex;
         PageNumber = pageNumber;
         Content = content;
-        Embedding = embedding is null ? null : Array.AsReadOnly(embedding);
+        Embedding = Array.AsReadOnly(embedding);
         EmbeddingProvider = embeddingProvider;
         EmbeddingModel = embeddingModel;
     }
@@ -30,11 +44,11 @@ public sealed class DocumentChunk : AggregateRoot
 
     public string Content { get; }
 
-    public IReadOnlyList<float>? Embedding { get; }
+    public IReadOnlyList<float> Embedding { get; }
 
-    public string? EmbeddingProvider { get; }
+    public string EmbeddingProvider { get; }
 
-    public string? EmbeddingModel { get; }
+    public string EmbeddingModel { get; }
 
     public static DocumentChunk Create(
         Guid bookId,
@@ -45,30 +59,43 @@ public sealed class DocumentChunk : AggregateRoot
         string? embeddingProvider = null,
         string? embeddingModel = null)
     {
-        Guard.Against.Default(bookId, nameof(bookId));
-        Guard.Against.Negative(chunkIndex, nameof(chunkIndex));
-        Guard.Against.NegativeOrZero(pageNumber, nameof(pageNumber));
-        Guard.Against.NullOrWhiteSpace(content, nameof(content));
+        Guard.Against.Default(bookId);
+        Guard.Against.Negative(chunkIndex);
+        Guard.Against.NegativeOrZero(pageNumber);
+        Guard.Against.NullOrWhiteSpace(content);
+        Guard.Against.Null(embedding);
+        var embeddingValues = embedding.ToArray();
         Guard.Against.InvalidInput(
-            embeddingProvider,
-            nameof(embeddingProvider),
-            provider => embedding is not null || provider is null,
-            "Embedding provenance requires an embedding.");
-        Guard.Against.InvalidInput(
-            embeddingModel,
-            nameof(embeddingModel),
-            model => embedding is not null || model is null,
-            "Embedding provenance requires an embedding.");
-
-        if (embedding is null)
-        {
-            return new DocumentChunk(bookId, chunkIndex, pageNumber, content, null, null, null);
-        }
-
-        Guard.Against.NullOrWhiteSpace(embeddingProvider, nameof(embeddingProvider));
-        Guard.Against.NullOrWhiteSpace(embeddingModel, nameof(embeddingModel));
+            embeddingValues,
+            nameof(embedding),
+            values => values.Length > 0,
+            "Embedding must not be empty.");
+        Guard.Against.NullOrWhiteSpace(embeddingProvider);
+        Guard.Against.NullOrWhiteSpace(embeddingModel);
 
         return new DocumentChunk(
+            bookId,
+            chunkIndex,
+            pageNumber,
+            content,
+            embeddingValues,
+            embeddingProvider,
+            embeddingModel);
+    }
+
+    internal static DocumentChunk Reconstitute(
+        Guid id,
+        Guid bookId,
+        int chunkIndex,
+        int pageNumber,
+        string content,
+        IEnumerable<float> embedding,
+        string embeddingProvider,
+        string embeddingModel)
+    {
+        // Persisted state is trusted; write-side APIs validate new aggregates.
+        return new DocumentChunk(
+            id,
             bookId,
             chunkIndex,
             pageNumber,

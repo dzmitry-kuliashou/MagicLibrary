@@ -6,20 +6,26 @@ namespace MagicLibrary.UnitTests.Core.Aggregates;
 public sealed class DocumentChunkTests
 {
     [Fact]
-    public void Create_WithoutEmbedding_RetainsChunkData()
+    public void Create_WithoutEmbedding_RejectsValue()
     {
-        var bookId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        Assert.ThrowsAny<ArgumentException>(() => DocumentChunk.Create(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            0,
+            1,
+            "Chunk content"));
+    }
 
-        var chunk = DocumentChunk.Create(bookId, 0, 1, "Chunk content");
-
-        Assert.NotEqual(Guid.Empty, chunk.Id);
-        Assert.Equal(bookId, chunk.BookId);
-        Assert.Equal(0, chunk.ChunkIndex);
-        Assert.Equal(1, chunk.PageNumber);
-        Assert.Equal("Chunk content", chunk.Content);
-        Assert.Null(chunk.Embedding);
-        Assert.Null(chunk.EmbeddingProvider);
-        Assert.Null(chunk.EmbeddingModel);
+    [Fact]
+    public void Create_EmptyEmbedding_RejectsValue()
+    {
+        Assert.ThrowsAny<ArgumentException>(() => DocumentChunk.Create(
+            Guid.NewGuid(),
+            0,
+            1,
+            "Chunk content",
+            [],
+            "LocalProvider",
+            "embedding-model:tag"));
     }
 
     [Fact]
@@ -38,10 +44,39 @@ public sealed class DocumentChunkTests
 
         embedding[0] = 9f;
 
-        Assert.Equal(new[] { 0.1f, 0.2f, 0.3f }, chunk.Embedding);
+        Assert.Equal([0.1f, 0.2f, 0.3f], chunk.Embedding);
         Assert.Equal("LocalProvider", chunk.EmbeddingProvider);
         Assert.Equal("embedding-model:tag", chunk.EmbeddingModel);
-        Assert.Throws<NotSupportedException>(() => ((IList<float>)chunk.Embedding!)[0] = 9f);
+        Assert.Throws<NotSupportedException>(() => ((IList<float>)chunk.Embedding)[0] = 9f);
+    }
+
+    [Fact]
+    public void Reconstitute_PreservesIdAndStoredData()
+    {
+        var id = Guid.NewGuid();
+        var bookId = Guid.NewGuid();
+        var embedding = new[] { 0.1f, 0.2f, 0.3f };
+
+        var chunk = DocumentChunk.Reconstitute(
+            id,
+            bookId,
+            2,
+            3,
+            "Chunk content",
+            embedding,
+            "LocalProvider",
+            "embedding-model:tag");
+
+        embedding[0] = 9f;
+
+        Assert.Equal(id, chunk.Id);
+        Assert.Equal(bookId, chunk.BookId);
+        Assert.Equal(2, chunk.ChunkIndex);
+        Assert.Equal(3, chunk.PageNumber);
+        Assert.Equal("Chunk content", chunk.Content);
+        Assert.Equal([0.1f, 0.2f, 0.3f], chunk.Embedding);
+        Assert.Equal("LocalProvider", chunk.EmbeddingProvider);
+        Assert.Equal("embedding-model:tag", chunk.EmbeddingModel);
     }
 
     [Fact]
@@ -90,36 +125,10 @@ public sealed class DocumentChunkTests
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData(" ")]
-    public void Create_ProviderWithoutEmbedding_RejectsValue(string provider)
-    {
-        Assert.ThrowsAny<ArgumentException>(() => DocumentChunk.Create(
-            Guid.NewGuid(),
-            0,
-            1,
-            "Chunk content",
-            embeddingProvider: provider));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(" ")]
-    public void Create_ModelWithoutEmbedding_RejectsValue(string model)
-    {
-        Assert.ThrowsAny<ArgumentException>(() => DocumentChunk.Create(
-            Guid.NewGuid(),
-            0,
-            1,
-            "Chunk content",
-            embeddingModel: model));
-    }
-
-    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
-    public void Create_EmbeddingWithoutProvider_RejectsValue(string? provider)
+    public void Create_InvalidEmbeddingProvider_RejectsValue(string? provider)
     {
         Assert.ThrowsAny<ArgumentException>(() => DocumentChunk.Create(
             Guid.NewGuid(),
@@ -135,7 +144,7 @@ public sealed class DocumentChunkTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
-    public void Create_EmbeddingWithoutModel_RejectsValue(string? model)
+    public void Create_InvalidEmbeddingModel_RejectsValue(string? model)
     {
         Assert.ThrowsAny<ArgumentException>(() => DocumentChunk.Create(
             Guid.NewGuid(),

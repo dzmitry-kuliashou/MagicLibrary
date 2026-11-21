@@ -1,5 +1,5 @@
 using Marten;
-using MagicLibrary.Infrastructure.StorageModels;
+using MagicLibrary.Infrastructure.StorageModels.Documents;
 
 namespace MagicLibrary.Infrastructure.StorageSetup;
 
