@@ -1,4 +1,11 @@
 services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:11435:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
   api:
     build:
       context: .
@@ -6,7 +13,9 @@ services:
     environment:
       ConnectionStrings__MagicLibrary: "Host=postgres;Port=5432;Database=magiclibrary;Username=magiclibrary;Password=${POSTGRES_PASSWORD:-magiclibrary-local}"
       Embedding__Provider: "${EMBEDDING_PROVIDER:-Ollama}"
-      Embedding__BaseUrl: "${EMBEDDING_BASE_URL:-http://host.docker.internal:11434}"
+      Chat__BaseUrl: http://ollama:11434
+      Chat__Model: "${CHAT_MODEL:-qwen3:4b}"
+      Embedding__BaseUrl: http://ollama:11434
       Embedding__Model: "${EMBEDDING_MODEL:-nomic-embed-text:latest}"
       Embedding__Dimensions: "${EMBEDDING_DIMENSIONS:-768}"
     depends_on:
@@ -14,8 +23,6 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   postgres:
     image: pgvector/pgvector:pg17
@@ -35,4 +42,5 @@ services:
       retries: 10
 
 volumes:
+  ollama-data:
   postgres-data:
