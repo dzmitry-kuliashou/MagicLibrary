@@ -13,4 +13,6 @@ public sealed class IndexingJobDocument : StorageDocument
     public DateTimeOffset? CompletedAt { get; set; }
 
     public string? FailureMessage { get; set; }
+
+    public string Progress { get; set; } = string.Empty;
 }

@@ -1,5 +1,7 @@
+using System.Text.Json;
 using MagicLibrary.Core.Aggregates;
 using MagicLibrary.Core.ValueObjects;
+using MagicLibrary.Infrastructure.StorageModels.Documents;
 using MagicLibrary.Infrastructure.StorageModels.Documents.Mappers;
 using Xunit;
 
@@ -45,6 +47,7 @@ public sealed class DocumentMapperTests
         Assert.Equal(original.CompletedAt, restored.CompletedAt);
         Assert.Equal(original.CompletedAt!.Value.Offset, restored.CompletedAt!.Value.Offset);
         Assert.Equal(original.FailureMessage, restored.FailureMessage);
+        Assert.Equal(original.Progress, restored.Progress);
     }
 
     [Fact]
@@ -104,6 +107,7 @@ public sealed class DocumentMapperTests
         var job = IndexingJob.Create(Guid.NewGuid());
         var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
         job.Start(startedAt);
+        job.UpdateIndexingProgress("Indexing page 1 of 3");
         job.Fail("Indexing failed.", startedAt.AddMinutes(2));
 
         return job;

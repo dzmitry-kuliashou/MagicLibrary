@@ -16,6 +16,7 @@ public sealed class IndexingJobTests
         Assert.NotEqual(bookId, job.Id);
         Assert.Equal(bookId, job.BookId);
         Assert.Equal(IndexingJobStatus.Pending, job.Status);
+        Assert.Equal(string.Empty, job.Progress);
         Assert.Null(job.StartedAt);
         Assert.Null(job.CompletedAt);
         Assert.Null(job.FailureMessage);
@@ -76,6 +77,69 @@ public sealed class IndexingJobTests
         Assert.Null(job.StartedAt);
     }
 
+    [Theory]
+    [InlineData(IndexingJobStatus.Running)]
+    [InlineData(IndexingJobStatus.Completed)]
+    [InlineData(IndexingJobStatus.Failed)]
+    public void Start_NonPendingAttempt_RejectsTransitionWithoutChangingAttempt(IndexingJobStatus status)
+    {
+        var job = CreateJob();
+        var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
+        var completedAt = startedAt.AddMinutes(2);
+        job.Start(startedAt);
+
+        if (status == IndexingJobStatus.Completed)
+        {
+            job.Complete(completedAt);
+        }
+        else if (status == IndexingJobStatus.Failed)
+        {
+            job.Fail("Indexing failed.", completedAt);
+        }
+
+        Assert.Throws<ArgumentException>(() => job.Start(completedAt.AddMinutes(1)));
+
+        Assert.Equal(status, job.Status);
+        Assert.Equal(startedAt, job.StartedAt);
+        Assert.Equal(status == IndexingJobStatus.Running ? null : completedAt, job.CompletedAt);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("Indexing page 1 of 3")]
+    public void UpdateIndexingProgress_RunningAttempt_StoresExactProgress(string progress)
+    {
+        var job = CreateJob();
+        job.Start(new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero));
+
+        job.UpdateIndexingProgress(progress);
+
+        Assert.Equal(IndexingJobStatus.Running, job.Status);
+        Assert.Equal(progress, job.Progress);
+    }
+
+    [Theory]
+    [InlineData(IndexingJobStatus.Pending)]
+    [InlineData(IndexingJobStatus.Completed)]
+    [InlineData(IndexingJobStatus.Failed)]
+    public void UpdateIndexingProgress_NonRunningAttempt_RejectsValueWithoutChangingAttempt(
+        IndexingJobStatus status)
+    {
+        var job = IndexingJob.Reconstitute(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            status,
+            null,
+            null,
+            null);
+
+        Assert.Throws<ArgumentException>(() => job.UpdateIndexingProgress("Indexing page 1 of 3"));
+
+        Assert.Equal(status, job.Status);
+        Assert.Equal(string.Empty, job.Progress);
+    }
+
     [Fact]
     public void Complete_RunningAttempt_RecordsCompletionTime()
     {
@@ -106,6 +170,39 @@ public sealed class IndexingJobTests
         Assert.Null(job.CompletedAt);
     }
 
+    [Theory]
+    [InlineData(IndexingJobStatus.Pending)]
+    [InlineData(IndexingJobStatus.Completed)]
+    [InlineData(IndexingJobStatus.Failed)]
+    public void Complete_NonRunningAttempt_RejectsTransitionWithoutChangingAttempt(IndexingJobStatus status)
+    {
+        var job = CreateJob();
+        var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
+        var completedAt = startedAt.AddMinutes(2);
+        if (status != IndexingJobStatus.Pending)
+        {
+            job.Start(startedAt);
+        }
+
+        if (status == IndexingJobStatus.Completed)
+        {
+            job.Complete(completedAt);
+        }
+        else if (status == IndexingJobStatus.Failed)
+        {
+            job.Fail("Indexing failed.", completedAt);
+        }
+
+        var originalStartedAt = job.StartedAt;
+        var originalCompletedAt = job.CompletedAt;
+
+        Assert.Throws<ArgumentException>(() => job.Complete(completedAt.AddMinutes(1)));
+
+        Assert.Equal(status, job.Status);
+        Assert.Equal(originalStartedAt, job.StartedAt);
+        Assert.Equal(originalCompletedAt, job.CompletedAt);
+    }
+
     [Fact]
     public void Fail_RunningAttempt_RecordsErrorAndCompletion()
     {
@@ -120,6 +217,43 @@ public sealed class IndexingJobTests
         Assert.Equal(startedAt, job.StartedAt);
         Assert.Equal(completedAt, job.CompletedAt);
         Assert.Equal("Indexing failed.", job.FailureMessage);
+    }
+
+    [Theory]
+    [InlineData(IndexingJobStatus.Pending)]
+    [InlineData(IndexingJobStatus.Completed)]
+    [InlineData(IndexingJobStatus.Failed)]
+    public void Fail_NonRunningAttempt_RejectsTransitionWithoutChangingAttempt(IndexingJobStatus status)
+    {
+        var job = CreateJob();
+        var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
+        var completedAt = startedAt.AddMinutes(2);
+        if (status != IndexingJobStatus.Pending)
+        {
+            job.Start(startedAt);
+        }
+
+        if (status == IndexingJobStatus.Completed)
+        {
+            job.Complete(completedAt);
+        }
+        else if (status == IndexingJobStatus.Failed)
+        {
+            job.Fail("Previous failure.", completedAt);
+        }
+
+        var originalStartedAt = job.StartedAt;
+        var originalCompletedAt = job.CompletedAt;
+        var originalFailureMessage = job.FailureMessage;
+
+        Assert.Throws<ArgumentException>(() => job.Fail(
+            "New failure.",
+            completedAt.AddMinutes(1)));
+
+        Assert.Equal(status, job.Status);
+        Assert.Equal(originalStartedAt, job.StartedAt);
+        Assert.Equal(originalCompletedAt, job.CompletedAt);
+        Assert.Equal(originalFailureMessage, job.FailureMessage);
     }
 
     [Theory]

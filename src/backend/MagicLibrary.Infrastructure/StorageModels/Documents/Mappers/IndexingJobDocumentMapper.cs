@@ -1,5 +1,4 @@
 using MagicLibrary.Core.Aggregates;
-using MagicLibrary.Infrastructure.StorageModels.Documents;
 
 namespace MagicLibrary.Infrastructure.StorageModels.Documents.Mappers;
 
@@ -14,7 +13,8 @@ internal static class IndexingJobDocumentMapper
             Status = job.Status,
             StartedAt = job.StartedAt,
             CompletedAt = job.CompletedAt,
-            FailureMessage = job.FailureMessage
+            FailureMessage = job.FailureMessage,
+            Progress = job.Progress
         };
     }
 
@@ -26,6 +26,7 @@ internal static class IndexingJobDocumentMapper
             document.Status,
             document.StartedAt,
             document.CompletedAt,
-            document.FailureMessage);
+            document.FailureMessage,
+            document.Progress);
     }
 }
