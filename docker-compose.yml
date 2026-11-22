@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/backend/MagicLibrary.Api/Dockerfile
+    environment:
+      ConnectionStrings__MagicLibrary: "Host=postgres;Port=5432;Database=magiclibrary;Username=magiclibrary;Password=${POSTGRES_PASSWORD:-magiclibrary-local}"
+      Embedding__Provider: "${EMBEDDING_PROVIDER:-Ollama}"
+      Embedding__BaseUrl: "${EMBEDDING_BASE_URL:-http://host.docker.internal:11434}"
+      Embedding__Model: "${EMBEDDING_MODEL:-nomic-embed-text:latest}"
+      Embedding__Dimensions: "${EMBEDDING_DIMENSIONS:-768}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: magiclibrary
+      POSTGRES_USER: magiclibrary
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-magiclibrary-local}
+      EMBEDDING_DIMENSIONS: "${EMBEDDING_DIMENSIONS:-768}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./src/backend/MagicLibrary.Infrastructure/StorageSetup/InitializeDocumentChunks.sh:/docker-entrypoint-initdb.d/01-document-chunks.sh:ro
+      - ./src/backend/MagicLibrary.Infrastructure/StorageSetup/DocumentChunks.sql:/opt/DocumentChunks.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

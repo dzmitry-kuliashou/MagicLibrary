@@ -145,6 +145,7 @@ CMakeLists.txt.user
 
 # Generated JSON file
 *.json
+!src/backend/MagicLibrary.Api/appsettings.json
 
 # Generated XAML file
 *.g.i.cs

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     chunk_index integer NOT NULL,
     page_number integer NOT NULL,
     content text NOT NULL,
-    embedding vector NOT NULL,
+    embedding vector(@@EMBEDDING_DIMENSIONS@@) NOT NULL,
     embedding_provider text NOT NULL,
     embedding_model text NOT NULL
 );
