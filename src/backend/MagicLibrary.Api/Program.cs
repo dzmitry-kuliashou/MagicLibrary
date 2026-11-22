@@ -5,9 +5,16 @@ using MagicLibrary.Infrastructure;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.Configure<BookStorageOptions>(
     builder.Configuration.GetSection(BookStorageOptions.SectionName));
 
 var app = builder.Build();
+
+app.UseSwagger();
+app.UseSwaggerUI();
+app.MapControllers();
 
 await app.RunAsync();
