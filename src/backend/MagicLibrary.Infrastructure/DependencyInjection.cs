@@ -9,6 +9,7 @@ using JasperFx;
 using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Npgsql;
 
 namespace MagicLibrary.Infrastructure;
@@ -26,6 +27,14 @@ public static class DependencyInjection
                 "Connection string 'MagicLibrary' must be configured.");
         }
 
+        services.AddSingleton<NpgsqlDataSource>(_ =>
+        {
+            var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+            dataSourceBuilder.UseVector();
+            return dataSourceBuilder.Build();
+        });
+        services.AddHostedService<EnsurePgTrgmExtensionHostedService>();
+
         services.AddMarten(options =>
             {
                 options.Connection(connectionString);
@@ -33,13 +42,6 @@ public static class DependencyInjection
                 options.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
             })
             .UseLightweightSessions();
-
-        services.AddSingleton<NpgsqlDataSource>(_ =>
-        {
-            var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-            dataSourceBuilder.UseVector();
-            return dataSourceBuilder.Build();
-        });
 
         services.AddScoped<IBookReadRepository, BookReadRepository>();
         services.AddScoped<IBookWriteRepository, BookWriteRepository>();
@@ -53,4 +55,15 @@ public static class DependencyInjection
 
         return services;
     }
+}
+
+internal sealed class EnsurePgTrgmExtensionHostedService(NpgsqlDataSource dataSource) : IHostedService
+{
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

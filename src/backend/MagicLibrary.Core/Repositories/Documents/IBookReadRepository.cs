@@ -4,16 +4,16 @@ namespace MagicLibrary.Core.Repositories.Documents;
 
 public interface IBookReadRepository : IDocumentReadRepository<Book>
 {
-    Task<Guid?> GetIdBySourceFileNameAsync(
+    Task<bool> BookExistsAsync(
         string sourceFileName,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Guid>> SearchByTitleAsync(
-        string title,
+        IReadOnlyCollection<string> titles,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Guid>> SearchByAuthorAsync(
-        string author,
+        IReadOnlyCollection<string> authors,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Guid>> SearchByKeywordsAsync(

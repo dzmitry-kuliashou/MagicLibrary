@@ -14,42 +14,75 @@ internal sealed class BookReadRepository(IQuerySession querySession)
     protected override Book ToAggregate(BookDocument document) =>
         BookDocumentMapper.ToAggregate(document);
 
-    public async Task<Guid?> GetIdBySourceFileNameAsync(
+    public Task<bool> BookExistsAsync(
         string sourceFileName,
         CancellationToken cancellationToken)
     {
-        var ids = await _querySession.Query<BookDocument>()
+        return _querySession.Query<BookDocument>()
             .Where(document => document.SourceFileName.Equals(
                 sourceFileName,
                 StringComparison.OrdinalIgnoreCase))
-            .OrderBy(document => document.Id)
-            .Select(document => document.Id)
-            .Take(1)
-            .ToListAsync(cancellationToken);
-
-        return ids.Count == 0 ? null : ids[0];
+            .AnyAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Guid>> SearchByTitleAsync(
-        string title,
+        IReadOnlyCollection<string> titles,
         CancellationToken cancellationToken)
     {
-        return await _querySession.Query<BookDocument>()
-            .Where(document => document.Title.Contains(title, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(document => document.Id)
-            .Select(document => document.Id)
-            .ToListAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(titles);
+
+        var searchTerms = titles
+            .Where(title => !string.IsNullOrWhiteSpace(title))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (searchTerms.Length == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        var matchingIds = new HashSet<Guid>();
+        foreach (var title in searchTerms)
+        {
+            var ids = await _querySession.Query<BookDocument>()
+                .Where(document => document.Title.Contains(title, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(document => document.Id)
+                .Select(document => document.Id)
+                .ToListAsync(cancellationToken);
+
+            matchingIds.UnionWith(ids);
+        }
+
+        return matchingIds.OrderBy(id => id).ToList();
     }
 
     public async Task<IReadOnlyList<Guid>> SearchByAuthorAsync(
-        string author,
+        IReadOnlyCollection<string> authors,
         CancellationToken cancellationToken)
     {
-        return await _querySession.Query<BookDocument>()
-            .Where(document => document.Author.Contains(author, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(document => document.Id)
-            .Select(document => document.Id)
-            .ToListAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(authors);
+
+        var searchTerms = authors
+            .Where(author => !string.IsNullOrWhiteSpace(author))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (searchTerms.Length == 0)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        var matchingIds = new HashSet<Guid>();
+        foreach (var author in searchTerms)
+        {
+            var ids = await _querySession.Query<BookDocument>()
+                .Where(document => document.Author.Contains(author, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(document => document.Id)
+                .Select(document => document.Id)
+                .ToListAsync(cancellationToken);
+
+            matchingIds.UnionWith(ids);
+        }
+
+        return matchingIds.OrderBy(id => id).ToList();
     }
 
     public async Task<IReadOnlyList<Guid>> SearchByKeywordsAsync(

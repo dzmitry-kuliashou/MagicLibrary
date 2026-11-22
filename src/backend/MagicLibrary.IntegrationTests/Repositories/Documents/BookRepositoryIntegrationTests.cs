@@ -3,6 +3,7 @@ using MagicLibrary.Core.Exceptions;
 using MagicLibrary.Core.Repositories.Documents;
 using MagicLibrary.IntegrationTests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace MagicLibrary.IntegrationTests.Repositories.Documents;
@@ -47,37 +48,150 @@ public sealed class BookRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SearchByTitleAsync_CaseInsensitivePartialMatch_ReturnsMatchingIds()
+    public async Task SearchByTitleAsync_MultipleCaseInsensitiveTerms_ReturnsUniqueIdsInOrder()
     {
-        var matchingBook = CreateBook("The Pragmatic Programmer");
-        var otherBook = CreateBook("A Different Topic");
-        await _writeRepository.CreateAsync(matchingBook, CancellationToken.None);
+        var token = Guid.NewGuid().ToString("N");
+        var pragmaticBook = CreateBook($"{token} Pragmatic Programmer");
+        var designBook = CreateBook($"Domain Design {token}");
+        var overlappingBook = CreateBook($"{token} Pragmatic Design {token}");
+        var otherBook = CreateBook($"{token} Different Topic");
+        await _writeRepository.CreateAsync(pragmaticBook, CancellationToken.None);
+        await _writeRepository.CreateAsync(designBook, CancellationToken.None);
+        await _writeRepository.CreateAsync(overlappingBook, CancellationToken.None);
         await _writeRepository.CreateAsync(otherBook, CancellationToken.None);
 
         var matchingIds = await _readRepository.SearchByTitleAsync(
-            "pRaGmAtIc",
+            [$"{token} pRaG", $"dEsIgN {token}"],
             CancellationToken.None);
+        var expectedIds = new[] { pragmaticBook.Id, designBook.Id, overlappingBook.Id }
+            .OrderBy(id => id)
+            .ToArray();
 
-        Assert.Equal([matchingBook.Id], matchingIds);
+        Assert.Equal(expectedIds, matchingIds);
     }
 
     [Fact]
-    public async Task SearchByAuthorAsync_CaseInsensitivePartialMatch_ReturnsMatchingIds()
+    public async Task SearchByAuthorAsync_MultipleCaseInsensitiveTerms_ReturnsUniqueIdsInOrder()
     {
-        var matchingBook = CreateBook(author: "Ada Lovelace");
-        var otherBook = CreateBook(author: "Grace Hopper");
-        await _writeRepository.CreateAsync(matchingBook, CancellationToken.None);
+        var token = Guid.NewGuid().ToString("N");
+        var adaBook = CreateBook(author: $"Ada {token} Lovelace");
+        var hopperBook = CreateBook(author: $"Grace Hopper {token}");
+        var overlappingBook = CreateBook(author: $"Ada {token} Hopper {token}");
+        var otherBook = CreateBook(author: $"Other {token} Author");
+        await _writeRepository.CreateAsync(adaBook, CancellationToken.None);
+        await _writeRepository.CreateAsync(hopperBook, CancellationToken.None);
+        await _writeRepository.CreateAsync(overlappingBook, CancellationToken.None);
         await _writeRepository.CreateAsync(otherBook, CancellationToken.None);
 
         var matchingIds = await _readRepository.SearchByAuthorAsync(
-            "lOvElAcE",
+            [$"aDa {token}", $"hOpPeR {token}"],
             CancellationToken.None);
+        var expectedIds = new[] { adaBook.Id, hopperBook.Id, overlappingBook.Id }
+            .OrderBy(id => id)
+            .ToArray();
 
-        Assert.Equal([matchingBook.Id], matchingIds);
+        Assert.Equal(expectedIds, matchingIds);
     }
 
     [Fact]
-    public async Task GetIdBySourceFileNameAsync_CaseInsensitiveExactMatch_ReturnsIdOrNull()
+    public async Task SearchByTitleAsync_NullEmptyAndBlankTerms_RejectsNullAndIgnoresBlanks()
+    {
+        var token = Guid.NewGuid().ToString("N");
+        var book = CreateBook($"Title {token}");
+        var unrelatedBook = CreateBook($"Unrelated {token}");
+        await _writeRepository.CreateAsync(book, CancellationToken.None);
+        await _writeRepository.CreateAsync(unrelatedBook, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(
+            () => _readRepository.SearchByTitleAsync(null!, CancellationToken.None));
+        var emptySearch = await _readRepository.SearchByTitleAsync(
+            [],
+            CancellationToken.None);
+        var blankMembersSearch = await _readRepository.SearchByTitleAsync(
+            [" ", $"title {token}", "\t"],
+            CancellationToken.None);
+        var allBlankSearch = await _readRepository.SearchByTitleAsync(
+            ["", " ", "\t"],
+            CancellationToken.None);
+
+        Assert.Equal("titles", exception.ParamName);
+        Assert.Empty(emptySearch);
+        Assert.Equal([book.Id], blankMembersSearch);
+        Assert.Empty(allBlankSearch);
+    }
+
+    [Fact]
+    public async Task SearchByAuthorAsync_NullEmptyAndBlankTerms_RejectsNullAndIgnoresBlanks()
+    {
+        var token = Guid.NewGuid().ToString("N");
+        var book = CreateBook(author: $"Author {token}");
+        var unrelatedBook = CreateBook(author: $"Unrelated {token}");
+        await _writeRepository.CreateAsync(book, CancellationToken.None);
+        await _writeRepository.CreateAsync(unrelatedBook, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(
+            () => _readRepository.SearchByAuthorAsync(null!, CancellationToken.None));
+        var emptySearch = await _readRepository.SearchByAuthorAsync(
+            [],
+            CancellationToken.None);
+        var blankMembersSearch = await _readRepository.SearchByAuthorAsync(
+            [" ", $"author {token}", "\t"],
+            CancellationToken.None);
+        var allBlankSearch = await _readRepository.SearchByAuthorAsync(
+            ["", " ", "\t"],
+            CancellationToken.None);
+
+        Assert.Equal("authors", exception.ParamName);
+        Assert.Empty(emptySearch);
+        Assert.Equal([book.Id], blankMembersSearch);
+        Assert.Empty(allBlankSearch);
+    }
+
+    [Fact]
+    public async Task BookSearchIndexes_AfterMartenSchemaInitialization_CreatesExpectedGinIndexes()
+    {
+        await _writeRepository.CreateAsync(CreateBook(), CancellationToken.None);
+
+        var indexNames = new[]
+        {
+            "idx_book_title_trgm",
+            "idx_book_author_trgm",
+            "idx_book_keywords_gin"
+        };
+        var trigramIndexNames = indexNames[..2];
+        var dataSource = _scope.ServiceProvider.GetRequiredService<NpgsqlDataSource>();
+        await using var command = dataSource.CreateCommand("""
+            SELECT indexname, indexdef
+            FROM pg_indexes
+            WHERE indexname = ANY (@indexNames)
+            """);
+        command.Parameters.AddWithValue("indexNames", indexNames);
+
+        var indexDefinitions = new Dictionary<string, string>(StringComparer.Ordinal);
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                indexDefinitions.Add(reader.GetString(0), reader.GetString(1));
+            }
+        }
+
+        Assert.Equal(indexNames.Length, indexDefinitions.Count);
+        foreach (var indexName in indexNames)
+        {
+            var definition = indexDefinitions[indexName];
+            Assert.True(definition.Contains("USING gin", StringComparison.OrdinalIgnoreCase));
+        }
+
+        foreach (var indexName in trigramIndexNames)
+        {
+            var definition = indexDefinitions[indexName];
+            Assert.True(definition.Contains("gin_trgm_ops", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    [Fact]
+    public async Task BookExistsAsync_CaseInsensitiveExactMatch_ReturnsTrueOrFalse()
     {
         var book = Book.Create(
             "A Curious File.PDF",
@@ -87,19 +201,19 @@ public sealed class BookRepositoryIntegrationTests : IAsyncLifetime
             DateTimeOffset.UnixEpoch);
         await _writeRepository.CreateAsync(book, CancellationToken.None);
 
-        var caseVariant = await _readRepository.GetIdBySourceFileNameAsync(
+        var caseVariant = await _readRepository.BookExistsAsync(
             "a curious file.pdf",
             CancellationToken.None);
-        var partialName = await _readRepository.GetIdBySourceFileNameAsync(
+        var partialName = await _readRepository.BookExistsAsync(
             "curious file",
             CancellationToken.None);
-        var unknownName = await _readRepository.GetIdBySourceFileNameAsync(
+        var unknownName = await _readRepository.BookExistsAsync(
             "unknown.pdf",
             CancellationToken.None);
 
-        Assert.Equal(book.Id, caseVariant);
-        Assert.Null(partialName);
-        Assert.Null(unknownName);
+        Assert.True(caseVariant);
+        Assert.False(partialName);
+        Assert.False(unknownName);
     }
 
     [Fact]
