@@ -1,4 +1,5 @@
 using Ardalis.GuardClauses;
+using MagicLibrary.Core.Helpers;
 
 namespace MagicLibrary.Core.Aggregates;
 
@@ -119,7 +120,7 @@ public sealed class Book : AggregateRoot
     public void AddKeywords(IEnumerable<string> keywords)
     {
         Guard.Against.Null(keywords);
-        _keywords.UnionWith(keywords);
+        _keywords.UnionWith(keywords.Select(KeywordNormalizer.Normalize));
     }
 
     public void MarkIndexingStarted()

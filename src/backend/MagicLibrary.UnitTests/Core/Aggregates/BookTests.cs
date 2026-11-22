@@ -73,7 +73,7 @@ public sealed class BookTests
         var book = CreateBook();
 
         book.AddKeywords(["semantic", "search"]);
-        book.AddKeywords(["semantic", "rag"]);
+        book.AddKeywords([" SEMANTIC ", "rag", "Search!!"]);
 
         Assert.Equal(3, book.Keywords.Count);
         Assert.Contains("semantic", book.Keywords);

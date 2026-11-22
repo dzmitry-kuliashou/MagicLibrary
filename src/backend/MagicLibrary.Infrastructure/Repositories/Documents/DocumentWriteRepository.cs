@@ -5,6 +5,7 @@ using MagicLibrary.Infrastructure.StorageModels.Documents;
 using JasperFx;
 using Marten;
 using Marten.Exceptions;
+using Npgsql;
 
 namespace MagicLibrary.Infrastructure.Repositories.Documents;
 
@@ -23,6 +24,10 @@ internal abstract class DocumentWriteRepository<TAggregate, TDocument>(IDocument
             await documentSession.SaveChangesAsync(cancellationToken);
         }
         catch (DocumentAlreadyExistsException)
+        {
+            throw new AggregateAlreadyExistsException(aggregate.Id);
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             throw new AggregateAlreadyExistsException(aggregate.Id);
         }

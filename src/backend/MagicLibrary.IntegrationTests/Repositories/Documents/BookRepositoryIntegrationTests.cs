@@ -47,6 +47,87 @@ public sealed class BookRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SearchByTitleAsync_CaseInsensitivePartialMatch_ReturnsMatchingIds()
+    {
+        var matchingBook = CreateBook("The Pragmatic Programmer");
+        var otherBook = CreateBook("A Different Topic");
+        await _writeRepository.CreateAsync(matchingBook, CancellationToken.None);
+        await _writeRepository.CreateAsync(otherBook, CancellationToken.None);
+
+        var matchingIds = await _readRepository.SearchByTitleAsync(
+            "pRaGmAtIc",
+            CancellationToken.None);
+
+        Assert.Equal([matchingBook.Id], matchingIds);
+    }
+
+    [Fact]
+    public async Task SearchByAuthorAsync_CaseInsensitivePartialMatch_ReturnsMatchingIds()
+    {
+        var matchingBook = CreateBook(author: "Ada Lovelace");
+        var otherBook = CreateBook(author: "Grace Hopper");
+        await _writeRepository.CreateAsync(matchingBook, CancellationToken.None);
+        await _writeRepository.CreateAsync(otherBook, CancellationToken.None);
+
+        var matchingIds = await _readRepository.SearchByAuthorAsync(
+            "lOvElAcE",
+            CancellationToken.None);
+
+        Assert.Equal([matchingBook.Id], matchingIds);
+    }
+
+    [Fact]
+    public async Task GetIdBySourceFileNameAsync_CaseInsensitiveExactMatch_ReturnsIdOrNull()
+    {
+        var book = Book.Create(
+            "A Curious File.PDF",
+            "Title",
+            "Author",
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UnixEpoch);
+        await _writeRepository.CreateAsync(book, CancellationToken.None);
+
+        var caseVariant = await _readRepository.GetIdBySourceFileNameAsync(
+            "a curious file.pdf",
+            CancellationToken.None);
+        var partialName = await _readRepository.GetIdBySourceFileNameAsync(
+            "curious file",
+            CancellationToken.None);
+        var unknownName = await _readRepository.GetIdBySourceFileNameAsync(
+            "unknown.pdf",
+            CancellationToken.None);
+
+        Assert.Equal(book.Id, caseVariant);
+        Assert.Null(partialName);
+        Assert.Null(unknownName);
+    }
+
+    [Fact]
+    public async Task SearchByKeywordsAsync_ExactAnyMatch_ReturnsMatchingIds()
+    {
+        var matchingBook = CreateBook();
+        matchingBook.AddKeywords(["semantic search!!", "rag"]);
+        var otherBook = CreateBook();
+        otherBook.AddKeywords(["semantic_search_extra"]);
+        await _writeRepository.CreateAsync(matchingBook, CancellationToken.None);
+        await _writeRepository.CreateAsync(otherBook, CancellationToken.None);
+
+        var matchingIds = await _readRepository.SearchByKeywordsAsync(
+            ["semantic_search", "unrelated"],
+            CancellationToken.None);
+        var partialMatches = await _readRepository.SearchByKeywordsAsync(
+            ["semantic"],
+            CancellationToken.None);
+        var emptySearch = await _readRepository.SearchByKeywordsAsync(
+            [],
+            CancellationToken.None);
+
+        Assert.Equal([matchingBook.Id], matchingIds);
+        Assert.Empty(partialMatches);
+        Assert.Empty(emptySearch);
+    }
+
+    [Fact]
     public async Task ListAsync_WithSkipAndTake_ReturnsBooksOrderedById()
     {
         var existingBooks = await _readRepository.ListAsync(0, int.MaxValue, CancellationToken.None);
@@ -110,6 +191,29 @@ public sealed class BookRepositoryIntegrationTests : IAsyncLifetime
             () => _writeRepository.CreateAsync(book, CancellationToken.None));
 
         Assert.Equal(book.Id, exception.AggregateId);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DuplicateSourceFileNameIgnoringCase_ThrowsAggregateAlreadyExistsException()
+    {
+        var existingBook = Book.Create(
+            "SharedName.pdf",
+            "Existing title",
+            "Existing author",
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UnixEpoch);
+        var duplicateBook = Book.Create(
+            "sharedname.PDF",
+            "Duplicate title",
+            "Duplicate author",
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UnixEpoch);
+        await _writeRepository.CreateAsync(existingBook, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<AggregateAlreadyExistsException>(
+            () => _writeRepository.CreateAsync(duplicateBook, CancellationToken.None));
+
+        Assert.Equal(duplicateBook.Id, exception.AggregateId);
     }
 
     [Fact]
