@@ -1,5 +1,7 @@
+using MagicLibrary.Application.PdfProcessing;
 using MagicLibrary.Core.Repositories.Documents;
 using MagicLibrary.Core.Repositories.Vectors;
+using MagicLibrary.Infrastructure.PdfProcessing;
 using MagicLibrary.Infrastructure.Repositories.Documents;
 using MagicLibrary.Infrastructure.Repositories.Vectors;
 using MagicLibrary.Infrastructure.StorageSetup;
@@ -47,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IConversationWriteRepository, ConversationWriteRepository>();
         services.AddScoped<IDocumentChunkReadRepository, DocumentChunkReadRepository>();
         services.AddScoped<IDocumentChunkWriteRepository, DocumentChunkWriteRepository>();
+        services.AddScoped<IPdfTextExtractor, PdfPigTextExtractor>();
 
         return services;
     }

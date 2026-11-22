@@ -20,4 +20,7 @@
     <ProjectReference Include="..\MagicLibrary.Api\MagicLibrary.Api.csproj" />
     <ProjectReference Include="..\MagicLibrary.Infrastructure\MagicLibrary.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="PdfProcessing\Fixtures\*.pdf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
