@@ -8,4 +8,11 @@
     <ProjectReference Include="..\MagicLibrary.Core\MagicLibrary.Core.csproj" />
     <ProjectReference Include="..\MagicLibrary.Contract\MagicLibrary.Contract.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="ErrorOr" Version="2.0.1" />
+    <PackageReference Include="FluentValidation" Version="12.0.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
+  </ItemGroup>
 </Project>
