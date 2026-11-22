@@ -29,6 +29,9 @@ public static class BookErrors
     public static Error BookNotFound(Guid bookId) =>
         Error.NotFound("Book.NotFound", $"The book with ID '{bookId}' was not found.");
 
+    public static Error BookNotFound(string filename) =>
+        Error.NotFound("Book.NotFound", $"The book with filename '{filename}' was not found.");
+
     public static Error InvalidIndexingTransition(
         BookIndexingStatus currentStatus,
         BookIndexingStatus targetStatus) =>

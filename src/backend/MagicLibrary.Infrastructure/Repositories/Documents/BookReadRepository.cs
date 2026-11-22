@@ -14,6 +14,19 @@ internal sealed class BookReadRepository(IQuerySession querySession)
     protected override Book ToAggregate(BookDocument document) =>
         BookDocumentMapper.ToAggregate(document);
 
+    public async Task<Book?> FindByFileName(
+        string filename,
+        CancellationToken cancellationToken)
+    {
+        var document = await _querySession.Query<BookDocument>()
+            .Where(document => document.SourceFileName.Equals(
+                filename,
+                StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return document is null ? null : ToAggregate(document);
+    }
+
     public Task<bool> BookExistsAsync(
         string sourceFileName,
         CancellationToken cancellationToken)

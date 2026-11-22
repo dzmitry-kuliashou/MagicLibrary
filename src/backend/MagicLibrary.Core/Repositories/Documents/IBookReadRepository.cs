@@ -4,6 +4,10 @@ namespace MagicLibrary.Core.Repositories.Documents;
 
 public interface IBookReadRepository : IDocumentReadRepository<Book>
 {
+    Task<Book?> FindByFileName(
+        string filename,
+        CancellationToken cancellationToken);
+
     Task<bool> BookExistsAsync(
         string sourceFileName,
         CancellationToken cancellationToken);

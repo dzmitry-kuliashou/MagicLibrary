@@ -217,6 +217,31 @@ public sealed class BookRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindByFileName_CaseInsensitiveMatch_ReturnsStoredBook()
+    {
+        var book = CreateBook();
+        await _writeRepository.CreateAsync(book, CancellationToken.None);
+
+        var found = await _readRepository.FindByFileName(
+            book.SourceFileName.ToUpperInvariant(),
+            CancellationToken.None);
+
+        Assert.NotNull(found);
+        Assert.Equal(book.Id, found.Id);
+        Assert.Equal(book.SourceFileName, found.SourceFileName);
+    }
+
+    [Fact]
+    public async Task FindByFileName_UnknownFilename_ReturnsNull()
+    {
+        var found = await _readRepository.FindByFileName(
+            $"missing-{Guid.NewGuid():N}.pdf",
+            CancellationToken.None);
+
+        Assert.Null(found);
+    }
+
+    [Fact]
     public async Task SearchByKeywordsAsync_ExactAnyMatch_ReturnsMatchingIds()
     {
         var matchingBook = CreateBook();
