@@ -105,16 +105,85 @@ public sealed class BookTests
         Assert.Null(book.IndexedAt);
     }
 
+    [Theory]
+    [InlineData(BookIndexingStatus.InProgress)]
+    [InlineData(BookIndexingStatus.Indexed)]
+    [InlineData(BookIndexingStatus.Failed)]
+    public void MarkIndexingStarted_InvalidTransition_RejectsOperation(BookIndexingStatus status)
+    {
+        var book = CreateBook();
+
+        switch (status)
+        {
+            case BookIndexingStatus.InProgress:
+                book.MarkIndexingStarted();
+                break;
+            case BookIndexingStatus.Indexed:
+                book.MarkIndexingStarted();
+                book.MarkIndexed(new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero));
+                break;
+            case BookIndexingStatus.Failed:
+                book.MarkIndexingStarted();
+                book.MarkIndexingFailed();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status), status, null);
+        }
+
+        var initialStatus = book.IndexingStatus;
+        var initialIndexedAt = book.IndexedAt;
+
+        Assert.Throws<ArgumentException>(() => book.MarkIndexingStarted());
+
+        Assert.Equal(initialStatus, book.IndexingStatus);
+        Assert.Equal(initialIndexedAt, book.IndexedAt);
+    }
+
     [Fact]
     public void MarkIndexed_CompletedAt_UpdatesStatusAndTimestamp()
     {
         var book = CreateBook();
         var indexedAt = new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero);
 
+        book.MarkIndexingStarted();
         book.MarkIndexed(indexedAt);
 
         Assert.Equal(BookIndexingStatus.Indexed, book.IndexingStatus);
         Assert.Equal(indexedAt, book.IndexedAt);
+    }
+
+    [Theory]
+    [InlineData(BookIndexingStatus.Pending)]
+    [InlineData(BookIndexingStatus.Indexed)]
+    [InlineData(BookIndexingStatus.Failed)]
+    public void MarkIndexed_InvalidTransition_RejectsOperation(BookIndexingStatus status)
+    {
+        var book = CreateBook();
+
+        switch (status)
+        {
+            case BookIndexingStatus.Pending:
+                break;
+            case BookIndexingStatus.Indexed:
+                book.MarkIndexingStarted();
+                book.MarkIndexed(new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero));
+                break;
+            case BookIndexingStatus.Failed:
+                book.MarkIndexingStarted();
+                book.MarkIndexingFailed();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status), status, null);
+        }
+
+        var initialStatus = book.IndexingStatus;
+        var initialIndexedAt = book.IndexedAt;
+
+        Assert.Throws<ArgumentException>(() =>
+            book.MarkIndexed(new DateTimeOffset(2026, 2, 4, 4, 5, 6, TimeSpan.Zero)));
+
+        Assert.Equal(initialStatus, book.IndexingStatus);
+        Assert.Equal(initialIndexedAt, book.IndexedAt);
     }
 
     [Fact]
@@ -127,6 +196,39 @@ public sealed class BookTests
 
         Assert.Equal(BookIndexingStatus.Failed, book.IndexingStatus);
         Assert.Null(book.IndexedAt);
+    }
+
+    [Theory]
+    [InlineData(BookIndexingStatus.Pending)]
+    [InlineData(BookIndexingStatus.Indexed)]
+    [InlineData(BookIndexingStatus.Failed)]
+    public void MarkIndexingFailed_InvalidTransition_RejectsOperation(BookIndexingStatus status)
+    {
+        var book = CreateBook();
+
+        switch (status)
+        {
+            case BookIndexingStatus.Pending:
+                break;
+            case BookIndexingStatus.Indexed:
+                book.MarkIndexingStarted();
+                book.MarkIndexed(new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero));
+                break;
+            case BookIndexingStatus.Failed:
+                book.MarkIndexingStarted();
+                book.MarkIndexingFailed();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status), status, null);
+        }
+
+        var initialStatus = book.IndexingStatus;
+        var initialIndexedAt = book.IndexedAt;
+
+        Assert.Throws<ArgumentException>(() => book.MarkIndexingFailed());
+
+        Assert.Equal(initialStatus, book.IndexingStatus);
+        Assert.Equal(initialIndexedAt, book.IndexedAt);
     }
 
     [Theory]

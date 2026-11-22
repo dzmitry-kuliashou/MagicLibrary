@@ -1,4 +1,5 @@
 using ErrorOr;
+using MagicLibrary.Core.Aggregates;
 
 namespace MagicLibrary.Application.Errors;
 
@@ -24,4 +25,14 @@ public static class BookErrors
 
     public static Error DuplicateFileName =>
         Error.Conflict("Book.DuplicateFileName", "A book with this filename already exists.");
+
+    public static Error BookNotFound(Guid bookId) =>
+        Error.NotFound("Book.NotFound", $"The book with ID '{bookId}' was not found.");
+
+    public static Error InvalidIndexingTransition(
+        BookIndexingStatus currentStatus,
+        BookIndexingStatus targetStatus) =>
+        Error.Conflict(
+            "Book.InvalidIndexingTransition",
+            $"A book cannot transition from {currentStatus} to {targetStatus}.");
 }

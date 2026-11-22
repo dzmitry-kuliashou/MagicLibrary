@@ -13,6 +13,13 @@ public enum BookIndexingStatus
 
 public sealed class Book : AggregateRoot
 {
+    private static readonly HashSet<(BookIndexingStatus From, BookIndexingStatus To)> AllowedIndexingTransitions =
+    [
+        (BookIndexingStatus.Pending, BookIndexingStatus.InProgress),
+        (BookIndexingStatus.InProgress, BookIndexingStatus.Indexed),
+        (BookIndexingStatus.InProgress, BookIndexingStatus.Failed)
+    ];
+
     private readonly HashSet<string> _keywords = new(StringComparer.Ordinal);
 
     private Book(
@@ -67,6 +74,9 @@ public sealed class Book : AggregateRoot
     public DateTimeOffset? IndexedAt { get; private set; }
 
     public BookIndexingStatus IndexingStatus { get; private set; }
+
+    public bool CanTransitionTo(BookIndexingStatus status) =>
+        AllowedIndexingTransitions.Contains((IndexingStatus, status));
 
     public static Book Create(
         string sourceFileName,
@@ -125,6 +135,12 @@ public sealed class Book : AggregateRoot
 
     public void MarkIndexingStarted()
     {
+        Guard.Against.InvalidInput(
+            IndexingStatus,
+            nameof(IndexingStatus),
+            status => AllowedIndexingTransitions.Contains((status, BookIndexingStatus.InProgress)),
+            $"Cannot transition indexing status from {IndexingStatus} to {BookIndexingStatus.InProgress}.");
+
         IndexingStatus = BookIndexingStatus.InProgress;
         IndexedAt = null;
     }
@@ -132,12 +148,24 @@ public sealed class Book : AggregateRoot
     public void MarkIndexed(DateTimeOffset indexedAt)
     {
         Guard.Against.Default(indexedAt);
+        Guard.Against.InvalidInput(
+            IndexingStatus,
+            nameof(IndexingStatus),
+            status => AllowedIndexingTransitions.Contains((status, BookIndexingStatus.Indexed)),
+            $"Cannot transition indexing status from {IndexingStatus} to {BookIndexingStatus.Indexed}.");
+
         IndexingStatus = BookIndexingStatus.Indexed;
         IndexedAt = indexedAt;
     }
 
     public void MarkIndexingFailed()
     {
+        Guard.Against.InvalidInput(
+            IndexingStatus,
+            nameof(IndexingStatus),
+            status => AllowedIndexingTransitions.Contains((status, BookIndexingStatus.Failed)),
+            $"Cannot transition indexing status from {IndexingStatus} to {BookIndexingStatus.Failed}.");
+
         IndexingStatus = BookIndexingStatus.Failed;
         IndexedAt = null;
     }
