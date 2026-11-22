@@ -8,7 +8,7 @@ using Xunit;
 
 namespace MagicLibrary.UnitTests.Application.Commands;
 
-public sealed class MarkIndexedCommandHandlerTests
+public sealed class MarkBookIndexedCommandHandlerTests
 {
     [Fact]
     public async Task Handle_BookDoesNotExist_ReturnsNotFound()
@@ -19,12 +19,12 @@ public sealed class MarkIndexedCommandHandlerTests
         readRepository
             .Setup(repository => repository.GetByIdAsync(bookId, CancellationToken.None))
             .ReturnsAsync((Book?)null);
-        var handler = new MarkIndexedCommandHandler(
+        var handler = new MarkBookIndexedCommandHandler(
             readRepository.Object,
             writeRepository.Object);
 
         var result = await handler.Handle(
-            new MarkIndexedCommand(
+            new MarkBookIndexedCommand(
                 bookId,
                 new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero)),
             CancellationToken.None);
@@ -53,12 +53,12 @@ public sealed class MarkIndexedCommandHandlerTests
         readRepository
             .Setup(repository => repository.GetByIdAsync(book.Id, CancellationToken.None))
             .ReturnsAsync(book);
-        var handler = new MarkIndexedCommandHandler(
+        var handler = new MarkBookIndexedCommandHandler(
             readRepository.Object,
             writeRepository.Object);
 
         var result = await handler.Handle(
-            new MarkIndexedCommand(
+            new MarkBookIndexedCommand(
                 book.Id,
                 new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero)),
             CancellationToken.None);
@@ -98,12 +98,12 @@ public sealed class MarkIndexedCommandHandlerTests
         writeRepository
             .Setup(repository => repository.UpdateAsync(book, CancellationToken.None))
             .Returns((Book updatedBook, CancellationToken _) => Task.FromResult(updatedBook));
-        var handler = new MarkIndexedCommandHandler(
+        var handler = new MarkBookIndexedCommandHandler(
             readRepository.Object,
             writeRepository.Object);
 
         var result = await handler.Handle(
-            new MarkIndexedCommand(book.Id, indexedAt),
+            new MarkBookIndexedCommand(book.Id, indexedAt),
             CancellationToken.None);
 
         Assert.False(result.IsError);

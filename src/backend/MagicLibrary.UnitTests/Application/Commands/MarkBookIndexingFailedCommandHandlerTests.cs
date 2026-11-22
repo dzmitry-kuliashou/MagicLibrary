@@ -8,7 +8,7 @@ using Xunit;
 
 namespace MagicLibrary.UnitTests.Application.Commands;
 
-public sealed class MarkIndexingStartedCommandHandlerTests
+public sealed class MarkBookIndexingFailedCommandHandlerTests
 {
     [Fact]
     public async Task Handle_BookDoesNotExist_ReturnsNotFound()
@@ -19,12 +19,12 @@ public sealed class MarkIndexingStartedCommandHandlerTests
         readRepository
             .Setup(repository => repository.GetByIdAsync(bookId, CancellationToken.None))
             .ReturnsAsync((Book?)null);
-        var handler = new MarkIndexingStartedCommandHandler(
+        var handler = new MarkBookIndexingFailedCommandHandler(
             readRepository.Object,
             writeRepository.Object);
 
         var result = await handler.Handle(
-            new MarkIndexingStartedCommand(bookId),
+            new MarkBookIndexingFailedCommand(bookId),
             CancellationToken.None);
 
         var error = Assert.Single(result.Errors);
@@ -46,30 +46,28 @@ public sealed class MarkIndexingStartedCommandHandlerTests
             "Author",
             "content-hash",
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
-        book.MarkIndexingStarted();
-        book.MarkIndexed(new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero));
         var readRepository = new Mock<IBookReadRepository>();
         var writeRepository = new Mock<IBookWriteRepository>();
         readRepository
             .Setup(repository => repository.GetByIdAsync(book.Id, CancellationToken.None))
             .ReturnsAsync(book);
-        var handler = new MarkIndexingStartedCommandHandler(
+        var handler = new MarkBookIndexingFailedCommandHandler(
             readRepository.Object,
             writeRepository.Object);
 
         var result = await handler.Handle(
-            new MarkIndexingStartedCommand(book.Id),
+            new MarkBookIndexingFailedCommand(book.Id),
             CancellationToken.None);
 
         var error = Assert.Single(result.Errors);
         Assert.Equal(ErrorType.Conflict, error.Type);
         Assert.Equal(
             BookErrors.InvalidIndexingTransition(
-                BookIndexingStatus.Indexed,
-                BookIndexingStatus.InProgress).Code,
+                BookIndexingStatus.Pending,
+                BookIndexingStatus.Failed).Code,
             error.Code);
-        Assert.Contains(BookIndexingStatus.Indexed.ToString(), error.Description);
-        Assert.Contains(BookIndexingStatus.InProgress.ToString(), error.Description);
+        Assert.Contains(BookIndexingStatus.Pending.ToString(), error.Description);
+        Assert.Contains(BookIndexingStatus.Failed.ToString(), error.Description);
         writeRepository.Verify(
             repository => repository.UpdateAsync(
                 It.IsAny<Book>(),
@@ -78,7 +76,7 @@ public sealed class MarkIndexingStartedCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidTransition_MarksIndexingStartedAndPersists()
+    public async Task Handle_ValidTransition_MarksIndexingFailedAndPersists()
     {
         var book = Book.Create(
             "book.pdf",
@@ -86,6 +84,7 @@ public sealed class MarkIndexingStartedCommandHandlerTests
             "Author",
             "content-hash",
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+        book.MarkIndexingStarted();
         var readRepository = new Mock<IBookReadRepository>();
         var writeRepository = new Mock<IBookWriteRepository>();
         readRepository
@@ -94,21 +93,23 @@ public sealed class MarkIndexingStartedCommandHandlerTests
         writeRepository
             .Setup(repository => repository.UpdateAsync(book, CancellationToken.None))
             .Returns((Book updatedBook, CancellationToken _) => Task.FromResult(updatedBook));
-        var handler = new MarkIndexingStartedCommandHandler(
+        var handler = new MarkBookIndexingFailedCommandHandler(
             readRepository.Object,
             writeRepository.Object);
 
         var result = await handler.Handle(
-            new MarkIndexingStartedCommand(book.Id),
+            new MarkBookIndexingFailedCommand(book.Id),
             CancellationToken.None);
 
         Assert.False(result.IsError);
-        Assert.Equal(BookIndexingStatus.InProgress, result.Value.IndexingStatus);
+        Assert.Equal(BookIndexingStatus.Failed, result.Value.IndexingStatus);
+        Assert.Null(result.Value.IndexedAt);
         writeRepository.Verify(
             repository => repository.UpdateAsync(
                 It.Is<Book>(updatedBook =>
                     updatedBook.Id == book.Id
-                    && updatedBook.IndexingStatus == BookIndexingStatus.InProgress),
+                    && updatedBook.IndexingStatus == BookIndexingStatus.Failed
+                    && updatedBook.IndexedAt == null),
                 CancellationToken.None),
             Times.Once);
     }

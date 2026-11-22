@@ -6,15 +6,15 @@ using MediatR;
 
 namespace MagicLibrary.Application.Commands;
 
-public sealed record MarkIndexingFailedCommand(Guid BookId) : IRequest<ErrorOr<Book>>;
+public sealed record MarkBookIndexingFailedCommand(Guid BookId) : IRequest<ErrorOr<Book>>;
 
-public sealed class MarkIndexingFailedCommandHandler(
+public sealed class MarkBookIndexingFailedCommandHandler(
     IBookReadRepository bookReadRepository,
     IBookWriteRepository bookWriteRepository)
-    : IRequestHandler<MarkIndexingFailedCommand, ErrorOr<Book>>
+    : IRequestHandler<MarkBookIndexingFailedCommand, ErrorOr<Book>>
 {
     public async Task<ErrorOr<Book>> Handle(
-        MarkIndexingFailedCommand request,
+        MarkBookIndexingFailedCommand request,
         CancellationToken cancellationToken)
     {
         var book = await bookReadRepository.GetByIdAsync(request.BookId, cancellationToken);
