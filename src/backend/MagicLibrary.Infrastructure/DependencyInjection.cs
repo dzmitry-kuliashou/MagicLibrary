@@ -1,9 +1,11 @@
 using MagicLibrary.Application.ConfigurationOptions;
 using MagicLibrary.Application.EmbeddingGeneration;
+using MagicLibrary.Application.KeywordExtraction;
 using MagicLibrary.Application.PdfProcessing;
 using MagicLibrary.Core.Repositories.Documents;
 using MagicLibrary.Core.Repositories.Vectors;
 using MagicLibrary.Infrastructure.EmbeddingGeneration;
+using MagicLibrary.Infrastructure.KeywordExtraction;
 using MagicLibrary.Infrastructure.PdfProcessing;
 using MagicLibrary.Infrastructure.Repositories.Documents;
 using MagicLibrary.Infrastructure.Repositories.Vectors;
@@ -39,6 +41,12 @@ public static class DependencyInjection
         });
         services.AddHostedService<EnsurePgTrgmExtensionHostedService>();
 
+        services.AddOptions<KeywordExtractionOptions>()
+            .Bind(configuration.GetSection(KeywordExtractionOptions.SectionName))
+            .Validate(options => options.MaxResults > 0,
+                "KeywordExtraction:MaxResults must be greater than zero.")
+            .ValidateOnStart();
+
         services.AddOptions<EmbeddingOptions>()
             .Bind(configuration.GetSection(EmbeddingOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.Provider),
@@ -61,6 +69,26 @@ public static class DependencyInjection
         services.AddTransient<IEmbeddingGenerator>(serviceProvider =>
             serviceProvider.GetRequiredService<OllamaEmbeddingGenerator>());
         services.AddTransient<IEmbeddingGeneratorFactory, EmbeddingGeneratorFactory>();
+
+        var chatBaseUrl = configuration["Chat:BaseUrl"];
+        if (!Uri.TryCreate(chatBaseUrl, UriKind.Absolute, out var chatBaseAddress) ||
+            (chatBaseAddress.Scheme != Uri.UriSchemeHttp && chatBaseAddress.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                "Chat:BaseUrl must be an absolute HTTP or HTTPS URL.");
+        }
+
+        if (string.IsNullOrWhiteSpace(configuration["Chat:Model"]))
+        {
+            throw new InvalidOperationException("Chat:Model must be configured.");
+        }
+
+        services.AddHttpClient<OllamaKeywordExtractor>((_, httpClient) =>
+        {
+            httpClient.BaseAddress = chatBaseAddress;
+        });
+        services.AddTransient<IKeywordExtractor>(serviceProvider =>
+            serviceProvider.GetRequiredService<OllamaKeywordExtractor>());
 
         services.AddMarten(options =>
             {
