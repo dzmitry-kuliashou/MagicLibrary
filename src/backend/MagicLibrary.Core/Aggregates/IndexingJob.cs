@@ -2,6 +2,8 @@ using Ardalis.GuardClauses;
 
 namespace MagicLibrary.Core.Aggregates;
 
+public sealed record IndexingJobFileError(string FileName, string Message);
+
 public enum IndexingJobStatus
 {
     Pending,
@@ -15,9 +17,12 @@ public sealed class IndexingJob : AggregateRoot
     private static readonly HashSet<(IndexingJobStatus From, IndexingJobStatus To)> AllowedTransitions =
     [
         (IndexingJobStatus.Pending, IndexingJobStatus.Running),
+        (IndexingJobStatus.Pending, IndexingJobStatus.Failed),
         (IndexingJobStatus.Running, IndexingJobStatus.Completed),
         (IndexingJobStatus.Running, IndexingJobStatus.Failed)
     ];
+
+    private readonly List<IndexingJobFileError> _fileErrors = [];
 
     private IndexingJob(Guid? bookId)
     {
@@ -33,7 +38,8 @@ public sealed class IndexingJob : AggregateRoot
         DateTimeOffset? startedAt,
         DateTimeOffset? completedAt,
         string? failureMessage,
-        string? progress)
+        string? progress,
+        IEnumerable<IndexingJobFileError>? fileErrors)
         : base(id)
     {
         BookId = bookId;
@@ -42,6 +48,10 @@ public sealed class IndexingJob : AggregateRoot
         CompletedAt = completedAt;
         FailureMessage = failureMessage;
         Progress = progress ?? string.Empty;
+        if (fileErrors is not null)
+        {
+            _fileErrors.AddRange(fileErrors);
+        }
     }
 
     public Guid? BookId { get; }
@@ -55,6 +65,9 @@ public sealed class IndexingJob : AggregateRoot
     public string? FailureMessage { get; private set; }
 
     public string Progress { get; private set; }
+
+    public IReadOnlyList<IndexingJobFileError> FileErrors =>
+        Array.AsReadOnly(_fileErrors.ToArray());
 
     public bool CanTransitionTo(IndexingJobStatus status) =>
         AllowedTransitions.Contains((Status, status));
@@ -76,10 +89,19 @@ public sealed class IndexingJob : AggregateRoot
         DateTimeOffset? startedAt,
         DateTimeOffset? completedAt,
         string? failureMessage,
-        string? progress = null)
+        string? progress = null,
+        IEnumerable<IndexingJobFileError>? fileErrors = null)
     {
         // Persisted state is trusted; write-side APIs validate new aggregates.
-        return new IndexingJob(id, bookId, status, startedAt, completedAt, failureMessage, progress);
+        return new IndexingJob(
+            id,
+            bookId,
+            status,
+            startedAt,
+            completedAt,
+            failureMessage,
+            progress,
+            fileErrors);
     }
 
     public void Start(DateTimeOffset startedAt)
@@ -130,5 +152,18 @@ public sealed class IndexingJob : AggregateRoot
             $"Cannot update indexing job progress while status is {Status}.");
 
         Progress = progress;
+    }
+
+    public void AddFileError(string fileName, string message)
+    {
+        Guard.Against.NullOrWhiteSpace(fileName);
+        Guard.Against.NullOrWhiteSpace(message);
+        Guard.Against.InvalidInput(
+            Status,
+            nameof(Status),
+            status => status == IndexingJobStatus.Running,
+            $"Cannot add an indexing job file error while status is {Status}.");
+
+        _fileErrors.Add(new IndexingJobFileError(fileName, message));
     }
 }

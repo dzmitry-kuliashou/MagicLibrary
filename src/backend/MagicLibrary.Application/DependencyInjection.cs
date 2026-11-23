@@ -1,7 +1,9 @@
 using FluentValidation;
 using MagicLibrary.Application.Commands;
+using MagicLibrary.Application.Indexing;
 using MagicLibrary.Application.Validators;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MagicLibrary.Application;
 
@@ -12,6 +14,11 @@ public static class DependencyInjection
         services.AddMediatR(configuration =>
             configuration.RegisterServicesFromAssembly(typeof(CreateBookCommand).Assembly));
         services.AddValidatorsFromAssembly(typeof(CreateBookCommandValidator).Assembly);
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IndexingWorker>();
+        services.AddScoped<IndexingScenarioFactory>();
+        services.AddScoped<IIndexingScenario, LibraryIndexingScenario>();
+        services.AddScoped<IIndexingScenario, BookIndexingScenario>();
 
         return services;
     }

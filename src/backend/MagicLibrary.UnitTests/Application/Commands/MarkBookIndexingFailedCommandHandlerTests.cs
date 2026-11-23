@@ -38,7 +38,7 @@ public sealed class MarkBookIndexingFailedCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_InvalidTransition_ReturnsConflict()
+    public async Task Handle_ValidTransitionFromPending_MarksIndexingFailedAndPersists()
     {
         var book = Book.Create(
             "book.pdf",
@@ -54,25 +54,25 @@ public sealed class MarkBookIndexingFailedCommandHandlerTests
         var handler = new MarkBookIndexingFailedCommandHandler(
             readRepository.Object,
             writeRepository.Object);
+        writeRepository
+            .Setup(repository => repository.UpdateAsync(book, CancellationToken.None))
+            .Returns((Book updatedBook, CancellationToken _) => Task.FromResult(updatedBook));
 
         var result = await handler.Handle(
             new MarkBookIndexingFailedCommand(book.Id),
             CancellationToken.None);
 
-        var error = Assert.Single(result.Errors);
-        Assert.Equal(ErrorType.Conflict, error.Type);
-        Assert.Equal(
-            BookErrors.InvalidIndexingTransition(
-                BookIndexingStatus.Pending,
-                BookIndexingStatus.Failed).Code,
-            error.Code);
-        Assert.Contains(BookIndexingStatus.Pending.ToString(), error.Description);
-        Assert.Contains(BookIndexingStatus.Failed.ToString(), error.Description);
+        Assert.False(result.IsError);
+        Assert.Equal(BookIndexingStatus.Failed, result.Value.IndexingStatus);
+        Assert.Null(result.Value.IndexedAt);
         writeRepository.Verify(
             repository => repository.UpdateAsync(
-                It.IsAny<Book>(),
+                It.Is<Book>(updatedBook =>
+                    updatedBook.Id == book.Id
+                    && updatedBook.IndexingStatus == BookIndexingStatus.Failed
+                    && updatedBook.IndexedAt == null),
                 CancellationToken.None),
-            Times.Never);
+            Times.Once);
     }
 
     [Fact]

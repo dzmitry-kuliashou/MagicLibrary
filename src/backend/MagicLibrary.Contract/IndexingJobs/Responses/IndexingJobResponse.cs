@@ -7,4 +7,7 @@ public sealed record IndexingJobResponse(
     string Progress,
     DateTimeOffset? StartedAt,
     DateTimeOffset? CompletedAt,
-    string? FailureMessage);
+    string? FailureMessage,
+    IReadOnlyList<IndexingJobFileErrorResponse> FileErrors);
+
+public sealed record IndexingJobFileErrorResponse(string FileName, string Message);

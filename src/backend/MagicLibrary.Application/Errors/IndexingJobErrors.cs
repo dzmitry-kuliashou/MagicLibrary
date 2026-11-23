@@ -22,6 +22,11 @@ public static class IndexingJobErrors
             "IndexingJob.ProgressUpdateNotAllowed",
             $"Progress can only be updated while an indexing job is Running; current status is {currentStatus}.");
 
+    public static Error FileErrorUpdateNotAllowed(IndexingJobStatus currentStatus) =>
+        Error.Conflict(
+            "IndexingJob.FileErrorUpdateNotAllowed",
+            $"A file error can only be added while an indexing job is Running; current status is {currentStatus}.");
+
     public static Error InvalidStartTimestamp =>
         Error.Validation(
             "IndexingJob.InvalidStartTimestamp",

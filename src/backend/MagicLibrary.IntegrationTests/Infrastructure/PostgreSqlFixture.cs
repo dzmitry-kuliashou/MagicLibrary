@@ -49,7 +49,9 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:MagicLibrary"] = ConnectionString
+                ["ConnectionStrings:MagicLibrary"] = ConnectionString,
+                ["Chat:BaseUrl"] = "http://localhost",
+                ["Chat:Model"] = "integration-test"
             })
             .Build();
 

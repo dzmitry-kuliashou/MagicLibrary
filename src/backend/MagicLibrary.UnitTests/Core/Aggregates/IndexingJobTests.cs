@@ -233,8 +233,68 @@ public sealed class IndexingJobTests
         Assert.Equal("Indexing failed.", job.FailureMessage);
     }
 
+    [Fact]
+    public void Fail_PendingAttempt_RecordsErrorAndCompletion()
+    {
+        var job = CreateJob();
+        var completedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
+
+        job.Fail("Indexing rejected.", completedAt);
+
+        Assert.Equal(IndexingJobStatus.Failed, job.Status);
+        Assert.Null(job.StartedAt);
+        Assert.Equal(completedAt, job.CompletedAt);
+        Assert.Equal("Indexing rejected.", job.FailureMessage);
+    }
+
+    [Fact]
+    public void AddFileError_RunningAttempt_AppendsStructuredErrorsInOrder()
+    {
+        var job = CreateJob();
+        job.Start(new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero));
+
+        job.AddFileError("first.pdf", "First error.");
+        job.AddFileError("second.pdf", "Second error.");
+
+        Assert.Collection(
+            job.FileErrors,
+            error =>
+            {
+                Assert.Equal("first.pdf", error.FileName);
+                Assert.Equal("First error.", error.Message);
+            },
+            error =>
+            {
+                Assert.Equal("second.pdf", error.FileName);
+                Assert.Equal("Second error.", error.Message);
+            });
+    }
+
     [Theory]
     [InlineData(IndexingJobStatus.Pending)]
+    [InlineData(IndexingJobStatus.Completed)]
+    [InlineData(IndexingJobStatus.Failed)]
+    public void AddFileError_NonRunningAttempt_RejectsWithoutChangingErrors(
+        IndexingJobStatus status)
+    {
+        var originalError = new IndexingJobFileError("existing.pdf", "Existing error.");
+        var completedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
+        var job = IndexingJob.Reconstitute(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            status,
+            null,
+            status == IndexingJobStatus.Pending ? null : completedAt,
+            status == IndexingJobStatus.Failed ? "Previous failure." : null,
+            fileErrors: [originalError]);
+
+        Assert.Throws<ArgumentException>(() => job.AddFileError("new.pdf", "New error."));
+
+        Assert.Equal(status, job.Status);
+        Assert.Equal([originalError], job.FileErrors);
+    }
+
+    [Theory]
     [InlineData(IndexingJobStatus.Completed)]
     [InlineData(IndexingJobStatus.Failed)]
     public void Fail_NonRunningAttempt_RejectsTransitionWithoutChangingAttempt(IndexingJobStatus status)
@@ -242,10 +302,7 @@ public sealed class IndexingJobTests
         var job = CreateJob();
         var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
         var completedAt = startedAt.AddMinutes(2);
-        if (status != IndexingJobStatus.Pending)
-        {
-            job.Start(startedAt);
-        }
+        job.Start(startedAt);
 
         if (status == IndexingJobStatus.Completed)
         {

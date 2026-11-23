@@ -16,6 +16,7 @@ public sealed class Book : AggregateRoot
     private static readonly HashSet<(BookIndexingStatus From, BookIndexingStatus To)> AllowedIndexingTransitions =
     [
         (BookIndexingStatus.Pending, BookIndexingStatus.InProgress),
+        (BookIndexingStatus.Pending, BookIndexingStatus.Failed),
         (BookIndexingStatus.InProgress, BookIndexingStatus.Indexed),
         (BookIndexingStatus.InProgress, BookIndexingStatus.Failed)
     ];

@@ -46,6 +46,18 @@ public sealed class DocumentMapperTests
         Assert.Equal(original.CompletedAt!.Value.Offset, restored.CompletedAt!.Value.Offset);
         Assert.Equal(original.FailureMessage, restored.FailureMessage);
         Assert.Equal(original.Progress, restored.Progress);
+        Assert.Collection(
+            restored.FileErrors,
+            error =>
+            {
+                Assert.Equal("first.pdf", error.FileName);
+                Assert.Equal("First error.", error.Message);
+            },
+            error =>
+            {
+                Assert.Equal("second.pdf", error.FileName);
+                Assert.Equal("Second error.", error.Message);
+            });
     }
 
     [Fact]
@@ -118,6 +130,8 @@ public sealed class DocumentMapperTests
         var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
         job.Start(startedAt);
         job.UpdateIndexingProgress("Indexing page 1 of 3");
+        job.AddFileError("first.pdf", "First error.");
+        job.AddFileError("second.pdf", "Second error.");
         job.Fail("Indexing failed.", startedAt.AddMinutes(2));
 
         return job;

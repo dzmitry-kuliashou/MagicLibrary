@@ -190,7 +190,6 @@ public sealed class BookTests
     public void MarkIndexingFailed_ValidTransition_UpdatesLatestStatus()
     {
         var book = CreateBook();
-        book.MarkIndexingStarted();
 
         book.MarkIndexingFailed();
 
@@ -199,7 +198,6 @@ public sealed class BookTests
     }
 
     [Theory]
-    [InlineData(BookIndexingStatus.Pending)]
     [InlineData(BookIndexingStatus.Indexed)]
     [InlineData(BookIndexingStatus.Failed)]
     public void MarkIndexingFailed_InvalidTransition_RejectsOperation(BookIndexingStatus status)

@@ -25,6 +25,11 @@ public sealed class IndexingJobController(ISender sender) : ControllerBase
                 job.Progress,
                 job.StartedAt,
                 job.CompletedAt,
-                job.FailureMessage)));
+                job.FailureMessage,
+                job.FileErrors
+                    .Select(error => new IndexingJobFileErrorResponse(
+                        error.FileName,
+                        error.Message))
+                    .ToArray())));
     }
 }

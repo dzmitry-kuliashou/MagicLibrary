@@ -28,8 +28,8 @@ public sealed class FailIndexingJobCommandHandlerTests
             .ReturnsAsync(job);
         indexingJobWriteRepository
             .Setup(repository => repository.UpdateAsync(
-                It.IsAny<IndexingJob>(),
-                CancellationToken.None))
+                    It.IsAny<IndexingJob>(),
+                    CancellationToken.None))
             .Returns((IndexingJob updatedJob, CancellationToken _) => Task.FromResult(updatedJob));
         var handler = new FailIndexingJobCommandHandler(
             new FailIndexingJobCommandValidator(),
@@ -54,6 +54,47 @@ public sealed class FailIndexingJobCommandHandlerTests
                     && updatedJob.CompletedAt == completedAt
                     && updatedJob.FailureMessage == failureMessage
                     && updatedJob.Progress == progress),
+                CancellationToken.None),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_PendingJob_FailsAndPersists()
+    {
+        var job = IndexingJob.Create(Guid.NewGuid());
+        var completedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
+        const string failureMessage = "Indexing rejected.";
+        var indexingJobReadRepository = new Mock<IIndexingJobReadRepository>();
+        var indexingJobWriteRepository = new Mock<IIndexingJobWriteRepository>();
+        indexingJobReadRepository
+            .Setup(repository => repository.GetByIdAsync(job.Id, CancellationToken.None))
+            .ReturnsAsync(job);
+        indexingJobWriteRepository
+            .Setup(repository => repository.UpdateAsync(
+            It.IsAny<IndexingJob>(),
+            CancellationToken.None))
+            .Returns((IndexingJob updatedJob, CancellationToken _) => Task.FromResult(updatedJob));
+        var handler = new FailIndexingJobCommandHandler(
+            new FailIndexingJobCommandValidator(),
+            indexingJobReadRepository.Object,
+            indexingJobWriteRepository.Object);
+
+        var result = await handler.Handle(
+            new FailIndexingJobCommand(job.Id, failureMessage, completedAt),
+            CancellationToken.None);
+
+        Assert.False(result.IsError);
+        Assert.Equal(IndexingJobStatus.Failed, result.Value.Status);
+        Assert.Null(result.Value.StartedAt);
+        Assert.Equal(completedAt, result.Value.CompletedAt);
+        Assert.Equal(failureMessage, result.Value.FailureMessage);
+        indexingJobWriteRepository.Verify(
+            repository => repository.UpdateAsync(
+                It.Is<IndexingJob>(updatedJob =>
+                    updatedJob.Id == job.Id
+                    && updatedJob.Status == IndexingJobStatus.Failed
+                    && updatedJob.CompletedAt == completedAt
+                    && updatedJob.FailureMessage == failureMessage),
                 CancellationToken.None),
             Times.Once);
     }
@@ -90,7 +131,6 @@ public sealed class FailIndexingJobCommandHandlerTests
     }
 
     [Theory]
-    [InlineData(IndexingJobStatus.Pending)]
     [InlineData(IndexingJobStatus.Completed)]
     [InlineData(IndexingJobStatus.Failed)]
     public async Task Handle_NonRunningJob_ReturnsInvalidTransitionWithoutUpdatingJob(
@@ -99,10 +139,7 @@ public sealed class FailIndexingJobCommandHandlerTests
         var job = IndexingJob.Create(Guid.NewGuid());
         var startedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.Zero);
         var completedAt = startedAt.AddMinutes(2);
-        if (status != IndexingJobStatus.Pending)
-        {
-            job.Start(startedAt);
-        }
+        job.Start(startedAt);
 
         if (status == IndexingJobStatus.Completed)
         {

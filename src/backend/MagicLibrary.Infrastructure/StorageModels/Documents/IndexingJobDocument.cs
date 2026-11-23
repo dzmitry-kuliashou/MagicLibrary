@@ -15,4 +15,6 @@ public sealed class IndexingJobDocument : StorageDocument
     public string? FailureMessage { get; set; }
 
     public string Progress { get; set; } = string.Empty;
+
+    public List<IndexingJobFileError> FileErrors { get; set; } = [];
 }

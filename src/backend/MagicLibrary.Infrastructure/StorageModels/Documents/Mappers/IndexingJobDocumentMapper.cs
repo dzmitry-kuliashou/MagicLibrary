@@ -14,7 +14,8 @@ internal static class IndexingJobDocumentMapper
             StartedAt = job.StartedAt,
             CompletedAt = job.CompletedAt,
             FailureMessage = job.FailureMessage,
-            Progress = job.Progress
+            Progress = job.Progress,
+            FileErrors = [.. job.FileErrors]
         };
     }
 
@@ -27,6 +28,7 @@ internal static class IndexingJobDocumentMapper
             document.StartedAt,
             document.CompletedAt,
             document.FailureMessage,
-            document.Progress);
+            document.Progress,
+            document.FileErrors);
     }
 }
