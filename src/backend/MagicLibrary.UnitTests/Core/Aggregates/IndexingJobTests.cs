@@ -6,6 +6,20 @@ namespace MagicLibrary.UnitTests.Core.Aggregates;
 public sealed class IndexingJobTests
 {
     [Fact]
+    public void Create_WithoutBookId_CreatesLibraryWidePendingJob()
+    {
+        var job = IndexingJob.Create(null);
+
+        Assert.NotEqual(Guid.Empty, job.Id);
+        Assert.Null(job.BookId);
+        Assert.Equal(IndexingJobStatus.Pending, job.Status);
+        Assert.Equal(string.Empty, job.Progress);
+        Assert.Null(job.StartedAt);
+        Assert.Null(job.CompletedAt);
+        Assert.Null(job.FailureMessage);
+    }
+
+    [Fact]
     public void Create_BookId_CreatesPendingAttempt()
     {
         var bookId = Guid.Parse("11111111-1111-1111-1111-111111111111");

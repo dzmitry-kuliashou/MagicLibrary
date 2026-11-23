@@ -11,6 +11,25 @@ namespace MagicLibrary.UnitTests.Application.Queries;
 public sealed class GetIndexingJobByIdQueryHandlerTests
 {
     [Fact]
+    public async Task Handle_LibraryWideJob_ReturnsNullBookId()
+    {
+        var job = IndexingJob.Create(null);
+        var indexingJobReadRepository = new Mock<IIndexingJobReadRepository>();
+        indexingJobReadRepository
+            .Setup(repository => repository.GetByIdAsync(job.Id, CancellationToken.None))
+            .ReturnsAsync(job);
+        var handler = new GetIndexingJobByIdQueryHandler(indexingJobReadRepository.Object);
+
+        var result = await handler.Handle(
+            new GetIndexingJobByIdQuery(job.Id),
+            CancellationToken.None);
+
+        Assert.False(result.IsError);
+        Assert.Equal(job.Id, result.Value.Id);
+        Assert.Null(result.Value.BookId);
+    }
+
+    [Fact]
     public async Task Handle_ExistingJob_ReturnsCompleteJobState()
     {
         var bookId = Guid.NewGuid();

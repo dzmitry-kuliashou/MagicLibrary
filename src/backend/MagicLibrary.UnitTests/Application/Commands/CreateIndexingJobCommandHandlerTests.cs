@@ -11,6 +11,39 @@ namespace MagicLibrary.UnitTests.Application.Commands;
 public sealed class CreateIndexingJobCommandHandlerTests
 {
     [Fact]
+    public async Task Handle_NoBookId_CreatesAndPersistsLibraryWideJob()
+    {
+        var bookReadRepository = new Mock<IBookReadRepository>();
+        var indexingJobWriteRepository = new Mock<IIndexingJobWriteRepository>();
+        indexingJobWriteRepository
+            .Setup(repository => repository.CreateAsync(
+                It.IsAny<IndexingJob>(),
+                CancellationToken.None))
+            .Returns((IndexingJob job, CancellationToken _) => Task.FromResult(job));
+        var handler = new CreateIndexingJobCommandHandler(
+            bookReadRepository.Object,
+            indexingJobWriteRepository.Object);
+
+        var result = await handler.Handle(
+            new CreateIndexingJobCommand(),
+            CancellationToken.None);
+
+        Assert.False(result.IsError);
+        Assert.Null(result.Value.BookId);
+        Assert.Equal(IndexingJobStatus.Pending, result.Value.Status);
+        bookReadRepository.Verify(
+            repository => repository.GetByIdAsync(It.IsAny<Guid>(), CancellationToken.None),
+            Times.Never);
+        indexingJobWriteRepository.Verify(
+            repository => repository.CreateAsync(
+                It.Is<IndexingJob>(job =>
+                    job.BookId == null
+                    && job.Status == IndexingJobStatus.Pending),
+                CancellationToken.None),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Handle_ExistingBook_CreatesAndPersistsIndexingJob()
     {
         var book = Book.Create(

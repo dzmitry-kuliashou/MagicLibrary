@@ -6,7 +6,7 @@ using MediatR;
 
 namespace MagicLibrary.Application.Commands;
 
-public sealed record CreateIndexingJobCommand(Guid BookId) : IRequest<ErrorOr<IndexingJob>>;
+public sealed record CreateIndexingJobCommand(Guid? BookId = null) : IRequest<ErrorOr<IndexingJob>>;
 
 public sealed class CreateIndexingJobCommandHandler(
     IBookReadRepository bookReadRepository,
@@ -17,13 +17,16 @@ public sealed class CreateIndexingJobCommandHandler(
         CreateIndexingJobCommand request,
         CancellationToken cancellationToken)
     {
-        var book = await bookReadRepository.GetByIdAsync(request.BookId, cancellationToken);
-        if (book is null)
+        if (request.BookId is Guid bookId)
         {
-            return BookErrors.BookNotFound(request.BookId);
+            var book = await bookReadRepository.GetByIdAsync(bookId, cancellationToken);
+            if (book is null)
+            {
+                return BookErrors.BookNotFound(bookId);
+            }
         }
 
-        var indexingJob = IndexingJob.Create(book.Id);
+        var indexingJob = IndexingJob.Create(request.BookId);
         return await indexingJobWriteRepository.CreateAsync(indexingJob, cancellationToken);
     }
 }

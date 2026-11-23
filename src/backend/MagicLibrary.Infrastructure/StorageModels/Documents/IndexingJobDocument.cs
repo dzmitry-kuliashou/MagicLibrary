@@ -4,7 +4,7 @@ namespace MagicLibrary.Infrastructure.StorageModels.Documents;
 
 public sealed class IndexingJobDocument : StorageDocument
 {
-    public Guid BookId { get; set; }
+    public Guid? BookId { get; set; }
 
     public IndexingJobStatus Status { get; set; }
 

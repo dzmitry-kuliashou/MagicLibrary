@@ -1,7 +1,5 @@
-using System.Text.Json;
 using MagicLibrary.Core.Aggregates;
 using MagicLibrary.Core.ValueObjects;
-using MagicLibrary.Infrastructure.StorageModels.Documents;
 using MagicLibrary.Infrastructure.StorageModels.Documents.Mappers;
 using Xunit;
 
@@ -48,6 +46,18 @@ public sealed class DocumentMapperTests
         Assert.Equal(original.CompletedAt!.Value.Offset, restored.CompletedAt!.Value.Offset);
         Assert.Equal(original.FailureMessage, restored.FailureMessage);
         Assert.Equal(original.Progress, restored.Progress);
+    }
+
+    [Fact]
+    public void MapToDocumentAndBack_IndexingJobWithoutBookId_PreservesLibraryScope()
+    {
+        var original = IndexingJob.Create(null);
+
+        var document = IndexingJobDocumentMapper.ToDocument(original);
+        var restored = IndexingJobDocumentMapper.ToAggregate(document);
+
+        Assert.Null(document.BookId);
+        Assert.Null(restored.BookId);
     }
 
     [Fact]

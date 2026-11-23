@@ -19,7 +19,7 @@ public sealed class IndexingJob : AggregateRoot
         (IndexingJobStatus.Running, IndexingJobStatus.Failed)
     ];
 
-    private IndexingJob(Guid bookId)
+    private IndexingJob(Guid? bookId)
     {
         BookId = bookId;
         Status = IndexingJobStatus.Pending;
@@ -28,7 +28,7 @@ public sealed class IndexingJob : AggregateRoot
 
     private IndexingJob(
         Guid id,
-        Guid bookId,
+        Guid? bookId,
         IndexingJobStatus status,
         DateTimeOffset? startedAt,
         DateTimeOffset? completedAt,
@@ -44,7 +44,7 @@ public sealed class IndexingJob : AggregateRoot
         Progress = progress ?? string.Empty;
     }
 
-    public Guid BookId { get; }
+    public Guid? BookId { get; }
 
     public IndexingJobStatus Status { get; private set; }
 
@@ -59,15 +59,19 @@ public sealed class IndexingJob : AggregateRoot
     public bool CanTransitionTo(IndexingJobStatus status) =>
         AllowedTransitions.Contains((Status, status));
 
-    public static IndexingJob Create(Guid bookId)
+    public static IndexingJob Create(Guid? bookId)
     {
-        Guard.Against.Default(bookId);
+        if (bookId is { } id)
+        {
+            Guard.Against.Default(id);
+        }
+
         return new IndexingJob(bookId);
     }
 
     internal static IndexingJob Reconstitute(
         Guid id,
-        Guid bookId,
+        Guid? bookId,
         IndexingJobStatus status,
         DateTimeOffset? startedAt,
         DateTimeOffset? completedAt,
