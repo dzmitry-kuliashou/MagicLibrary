@@ -1,6 +1,9 @@
+using MagicLibrary.Application.ConfigurationOptions;
+using MagicLibrary.Application.EmbeddingGeneration;
 using MagicLibrary.Application.PdfProcessing;
 using MagicLibrary.Core.Repositories.Documents;
 using MagicLibrary.Core.Repositories.Vectors;
+using MagicLibrary.Infrastructure.EmbeddingGeneration;
 using MagicLibrary.Infrastructure.PdfProcessing;
 using MagicLibrary.Infrastructure.Repositories.Documents;
 using MagicLibrary.Infrastructure.Repositories.Vectors;
@@ -10,6 +13,7 @@ using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace MagicLibrary.Infrastructure;
@@ -34,6 +38,29 @@ public static class DependencyInjection
             return dataSourceBuilder.Build();
         });
         services.AddHostedService<EnsurePgTrgmExtensionHostedService>();
+
+        services.AddOptions<EmbeddingOptions>()
+            .Bind(configuration.GetSection(EmbeddingOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Provider),
+                "Embedding:Provider must be configured.")
+            .Validate(options =>
+                    Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var baseAddress) &&
+                    (baseAddress.Scheme == Uri.UriSchemeHttp || baseAddress.Scheme == Uri.UriSchemeHttps),
+                "Embedding:BaseUrl must be an absolute HTTP or HTTPS URL.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Model),
+                "Embedding:Model must be configured.")
+            .Validate(options => options.Dimensions > 0,
+                "Embedding:Dimensions must be greater than zero.")
+            .ValidateOnStart();
+
+        services.AddHttpClient<OllamaEmbeddingGenerator>((serviceProvider, httpClient) =>
+        {
+            var embeddingOptions = serviceProvider.GetRequiredService<IOptions<EmbeddingOptions>>().Value;
+            httpClient.BaseAddress = new Uri(embeddingOptions.BaseUrl);
+        });
+        services.AddTransient<IEmbeddingGenerator>(serviceProvider =>
+            serviceProvider.GetRequiredService<OllamaEmbeddingGenerator>());
+        services.AddTransient<IEmbeddingGeneratorFactory, EmbeddingGeneratorFactory>();
 
         services.AddMarten(options =>
             {
