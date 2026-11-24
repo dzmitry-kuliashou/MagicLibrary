@@ -1,5 +1,7 @@
 using MagicLibrary.Api.Results;
+using MagicLibrary.Application.Commands;
 using MagicLibrary.Application.Queries;
+using MagicLibrary.Contract.IndexingJobs.Requests;
 using MagicLibrary.Contract.IndexingJobs.Responses;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +12,22 @@ namespace MagicLibrary.Api.Controllers;
 [Route("indexing-jobs")]
 public sealed class IndexingJobController(ISender sender) : ControllerBase
 {
+    [HttpPost]
+    [ProducesResponseType(typeof(RunIndexingResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Run(
+        RunIndexingRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new RunIndexingCommand(request.BookId),
+            cancellationToken);
+
+        return result.ToActionResult(indexingJobId =>
+            Accepted(new RunIndexingResponse(indexingJobId)));
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(IndexingJobResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

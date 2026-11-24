@@ -1,6 +1,7 @@
 using ErrorOr;
 using MagicLibrary.Application.Commands;
 using MagicLibrary.Application.Errors;
+using MagicLibrary.Application.Indexing;
 using MagicLibrary.Core.Aggregates;
 using MagicLibrary.Core.Repositories.Documents;
 using Moq;
@@ -8,43 +9,50 @@ using Xunit;
 
 namespace MagicLibrary.UnitTests.Application.Commands;
 
-public sealed class CreateIndexingJobCommandHandlerTests
+public sealed class RunIndexingJobCommandHandlerTests
 {
+    private readonly Mock<IBookReadRepository> _bookReadRepository = new();
+    private readonly Mock<IIndexingJobWriteRepository> _indexingJobWriteRepository = new();
+    private readonly Mock<IIndexingJobBackgroundProcessor> _backgroundProcessor = new();
+
+    private RunIndexingJobCommandHandler CreateHandler() =>
+        new(
+            _bookReadRepository.Object,
+            _indexingJobWriteRepository.Object,
+            _backgroundProcessor.Object);
+
     [Fact]
-    public async Task Handle_NoBookId_CreatesAndPersistsLibraryWideJob()
+    public async Task Handle_NullBookId_CreatesAndStartsLibraryWideJob()
     {
-        var bookReadRepository = new Mock<IBookReadRepository>();
-        var indexingJobWriteRepository = new Mock<IIndexingJobWriteRepository>();
-        indexingJobWriteRepository
+        _indexingJobWriteRepository
             .Setup(repository => repository.CreateAsync(
                 It.IsAny<IndexingJob>(),
                 CancellationToken.None))
             .Returns((IndexingJob job, CancellationToken _) => Task.FromResult(job));
-        var handler = new CreateIndexingJobCommandHandler(
-            bookReadRepository.Object,
-            indexingJobWriteRepository.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(
-            new CreateIndexingJobCommand(),
+            new RunIndexingCommand(null),
             CancellationToken.None);
 
         Assert.False(result.IsError);
-        Assert.Null(result.Value.BookId);
-        Assert.Equal(IndexingJobStatus.Pending, result.Value.Status);
-        bookReadRepository.Verify(
+        _bookReadRepository.Verify(
             repository => repository.GetByIdAsync(It.IsAny<Guid>(), CancellationToken.None),
             Times.Never);
-        indexingJobWriteRepository.Verify(
+        _indexingJobWriteRepository.Verify(
             repository => repository.CreateAsync(
                 It.Is<IndexingJob>(job =>
                     job.BookId == null
                     && job.Status == IndexingJobStatus.Pending),
                 CancellationToken.None),
             Times.Once);
+        _backgroundProcessor.Verify(
+            processor => processor.Start(result.Value),
+            Times.Once);
     }
 
     [Fact]
-    public async Task Handle_ExistingBook_CreatesAndPersistsIndexingJob()
+    public async Task Handle_BookId_CreatesAndStartsBookScopedJob()
     {
         var book = Book.Create(
             "book.pdf",
@@ -52,33 +60,33 @@ public sealed class CreateIndexingJobCommandHandlerTests
             "Author",
             "content-hash",
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
-        var bookReadRepository = new Mock<IBookReadRepository>();
-        var indexingJobWriteRepository = new Mock<IIndexingJobWriteRepository>();
-        bookReadRepository
+        _bookReadRepository
             .Setup(repository => repository.GetByIdAsync(book.Id, CancellationToken.None))
             .ReturnsAsync(book);
-        indexingJobWriteRepository
+        _indexingJobWriteRepository
             .Setup(repository => repository.CreateAsync(
                 It.IsAny<IndexingJob>(),
                 CancellationToken.None))
             .Returns((IndexingJob job, CancellationToken _) => Task.FromResult(job));
-        var handler = new CreateIndexingJobCommandHandler(
-            bookReadRepository.Object,
-            indexingJobWriteRepository.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(
-            new CreateIndexingJobCommand(book.Id),
+            new RunIndexingCommand(book.Id),
             CancellationToken.None);
 
         Assert.False(result.IsError);
-        Assert.Equal(book.Id, result.Value.BookId);
-        Assert.Equal(IndexingJobStatus.Pending, result.Value.Status);
-        indexingJobWriteRepository.Verify(
+        _bookReadRepository.Verify(
+            repository => repository.GetByIdAsync(book.Id, CancellationToken.None),
+            Times.Once);
+        _indexingJobWriteRepository.Verify(
             repository => repository.CreateAsync(
                 It.Is<IndexingJob>(job =>
                     job.BookId == book.Id
                     && job.Status == IndexingJobStatus.Pending),
                 CancellationToken.None),
+            Times.Once);
+        _backgroundProcessor.Verify(
+            processor => processor.Start(result.Value),
             Times.Once);
     }
 
@@ -86,26 +94,45 @@ public sealed class CreateIndexingJobCommandHandlerTests
     public async Task Handle_BookDoesNotExist_ReturnsNotFoundWithoutCreatingJob()
     {
         var bookId = Guid.NewGuid();
-        var bookReadRepository = new Mock<IBookReadRepository>();
-        var indexingJobWriteRepository = new Mock<IIndexingJobWriteRepository>();
-        bookReadRepository
+        _bookReadRepository
             .Setup(repository => repository.GetByIdAsync(bookId, CancellationToken.None))
             .ReturnsAsync((Book?)null);
-        var handler = new CreateIndexingJobCommandHandler(
-            bookReadRepository.Object,
-            indexingJobWriteRepository.Object);
+        var handler = CreateHandler();
 
         var result = await handler.Handle(
-            new CreateIndexingJobCommand(bookId),
+            new RunIndexingCommand(bookId),
             CancellationToken.None);
 
         var error = Assert.Single(result.Errors);
         Assert.Equal(ErrorType.NotFound, error.Type);
         Assert.Equal(BookErrors.BookNotFound(bookId).Code, error.Code);
-        indexingJobWriteRepository.Verify(
+        _indexingJobWriteRepository.Verify(
             repository => repository.CreateAsync(
                 It.IsAny<IndexingJob>(),
                 CancellationToken.None),
+            Times.Never);
+        _backgroundProcessor.Verify(
+            processor => processor.Start(It.IsAny<Guid>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_CreateAsyncThrows_DoesNotStartProcessing()
+    {
+        _indexingJobWriteRepository
+            .Setup(repository => repository.CreateAsync(
+                It.IsAny<IndexingJob>(),
+                CancellationToken.None))
+            .ThrowsAsync(new InvalidOperationException("Persistence failed."));
+        var handler = CreateHandler();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => handler.Handle(
+                new RunIndexingCommand(null),
+                CancellationToken.None));
+
+        _backgroundProcessor.Verify(
+            processor => processor.Start(It.IsAny<Guid>()),
             Times.Never);
     }
 }

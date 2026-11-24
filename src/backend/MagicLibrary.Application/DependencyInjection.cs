@@ -15,6 +15,7 @@ public static class DependencyInjection
             configuration.RegisterServicesFromAssembly(typeof(CreateBookCommand).Assembly));
         services.AddValidatorsFromAssembly(typeof(CreateBookCommandValidator).Assembly);
         services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IIndexingJobBackgroundProcessor, IndexingJobBackgroundProcessor>();
         services.AddScoped<IndexingWorker>();
         services.AddScoped<IndexingScenarioFactory>();
         services.AddScoped<IIndexingScenario, LibraryIndexingScenario>();
