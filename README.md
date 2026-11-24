@@ -6,10 +6,10 @@
 From the repository root, start the API and pgvector database with:
 
 ```sh
-docker compose up --build -d
+docker compose --profile magic_library_api up --build -d
 ```
 
-The API listens on `http://localhost:8080`. The Compose stack includes one Ollama service shared by chat and embeddings. The API reaches it at `http://ollama:11434`; local tools and direct API runs can reach it at `http://localhost:11435`.
+Compose waits for PostgreSQL's health check before starting the API. The API listens on `http://localhost:5100`. The Compose stack includes one Ollama service shared by chat and embeddings. The API reaches it at `http://ollama:11434`; local tools and direct API runs can reach it at `http://localhost:11435`.
 
 Pull the models explicitly after the services start:
 
@@ -40,9 +40,15 @@ docker compose exec ollama ollama pull qwen3:8b
 
 The chat model can be changed independently of the embedding model; both use the same Ollama service, and changing the chat model does not affect the embedding settings. Use one embedding model per database, and ensure its output dimension matches `EMBEDDING_DIMENSIONS`. Changing dimensions requires recreating the database schema and re-embedding stored chunks. PostgreSQL initialization scripts run only for a fresh data volume.
 
+Keyword extraction requests structured JSON, disables model thinking, limits each response to `KeywordExtraction:MaxGeneratedTokens` tokens (128 by default), and times out after 60 seconds. A timeout is recorded as a per-book indexing error so the background job can finish instead of remaining in the running state.
+
 ## Run the API directly
 
 `src/backend/MagicLibrary.Api/appsettings.json` contains non-production localhost defaults for PostgreSQL, chat, and embedding settings. The chat defaults are `http://localhost:11435` and `qwen3:4b`; the embedding defaults are `http://localhost:11435`, `nomic-embed-text:latest`, and 768 dimensions. Override them with .NET environment variables as needed. For example, in PowerShell:
+
+Direct API runs and the local launch profile use `http://localhost:5100` by default. Stop the Compose API service before starting the API from the IDE on the same port.
+
+For direct API runs, PostgreSQL must already be running with the `vector` and `pg_trgm` extensions installed. The Compose PostgreSQL initialization script installs these extensions when creating a fresh data volume.
 
 ```powershell
 $env:ConnectionStrings__MagicLibrary = "Host=localhost;Port=5432;Database=magiclibrary;Username=magiclibrary;Password=your-local-password"

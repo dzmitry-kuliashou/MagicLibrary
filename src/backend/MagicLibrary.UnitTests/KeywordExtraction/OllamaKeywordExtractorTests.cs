@@ -22,7 +22,16 @@ public sealed class OllamaKeywordExtractorTests
                 {
                     message = new
                     {
-                        content = "Search ranking\nSemantic indexing\nLocal inference\nDocument parsing"
+                        content = JsonSerializer.Serialize(new
+                        {
+                            keywords = new[]
+                            {
+                                "Search ranking",
+                                "Semantic indexing",
+                                "Local inference",
+                                "Document parsing"
+                            }
+                        })
                     }
                 })
             }),
@@ -45,7 +54,16 @@ public sealed class OllamaKeywordExtractorTests
                 {
                     message = new
                     {
-                        content = "semantic search\nlarge-scale semantic information retrieval\nbook indexing\nphrase with four words"
+                        content = JsonSerializer.Serialize(new
+                        {
+                            keywords = new[]
+                            {
+                                "semantic search",
+                                "large-scale semantic information retrieval",
+                                "book indexing",
+                                "phrase with four words"
+                            }
+                        })
                     }
                 })
             }));
@@ -65,7 +83,10 @@ public sealed class OllamaKeywordExtractorTests
                 {
                     message = new
                     {
-                        content = "- Semantic Search!\n2. Book indexing, AI!"
+                        content = JsonSerializer.Serialize(new
+                        {
+                            keywords = new[] { "Semantic Search!", "Book indexing, AI!" }
+                        })
                     }
                 })
             }));
@@ -83,7 +104,13 @@ public sealed class OllamaKeywordExtractorTests
             {
                 Content = JsonContent.Create(new
                 {
-                    message = new { content = "semantic search" }
+                    message = new
+                    {
+                        content = JsonSerializer.Serialize(new
+                        {
+                            keywords = new[] { "semantic search" }
+                        })
+                    }
                 })
             }));
 
@@ -95,6 +122,11 @@ public sealed class OllamaKeywordExtractorTests
         using var request = JsonDocument.Parse(handler.RequestBody!);
         Assert.Equal(ChatModel, request.RootElement.GetProperty("model").GetString());
         Assert.False(request.RootElement.GetProperty("stream").GetBoolean());
+        Assert.False(request.RootElement.GetProperty("think").GetBoolean());
+        Assert.Equal("json", request.RootElement.GetProperty("format").GetString());
+        Assert.Equal(
+            128,
+            request.RootElement.GetProperty("options").GetProperty("num_predict").GetInt32());
         Assert.Contains(
             "Source chunk.",
             request.RootElement.GetProperty("messages")[0].GetProperty("content").GetString(),

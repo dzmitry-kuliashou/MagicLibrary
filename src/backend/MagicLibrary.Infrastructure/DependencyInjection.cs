@@ -14,7 +14,6 @@ using JasperFx;
 using Marten;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -39,12 +38,13 @@ public static class DependencyInjection
             dataSourceBuilder.UseVector();
             return dataSourceBuilder.Build();
         });
-        services.AddHostedService<EnsurePgTrgmExtensionHostedService>();
 
         services.AddOptions<KeywordExtractionOptions>()
             .Bind(configuration.GetSection(KeywordExtractionOptions.SectionName))
             .Validate(options => options.MaxResults > 0,
                 "KeywordExtraction:MaxResults must be greater than zero.")
+            .Validate(options => options.MaxGeneratedTokens > 0,
+                "KeywordExtraction:MaxGeneratedTokens must be greater than zero.")
             .ValidateOnStart();
 
         services.AddOptions<EmbeddingOptions>()
@@ -86,6 +86,7 @@ public static class DependencyInjection
         services.AddHttpClient<OllamaKeywordExtractor>((_, httpClient) =>
         {
             httpClient.BaseAddress = chatBaseAddress;
+            httpClient.Timeout = TimeSpan.FromSeconds(60);
         });
         services.AddTransient<IKeywordExtractor>(serviceProvider =>
             serviceProvider.GetRequiredService<OllamaKeywordExtractor>());
@@ -110,15 +111,4 @@ public static class DependencyInjection
 
         return services;
     }
-}
-
-internal sealed class EnsurePgTrgmExtensionHostedService(NpgsqlDataSource dataSource) : IHostedService
-{
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        await using var command = dataSource.CreateCommand("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

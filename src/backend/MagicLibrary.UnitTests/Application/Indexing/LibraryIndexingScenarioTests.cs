@@ -312,6 +312,61 @@ public sealed class LibraryIndexingScenarioTests
     }
 
     [Fact]
+    public async Task Execute_KeywordExtractionTimeout_MarksBookFailedAndContinues()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        const string fileName = "timed-out-book.pdf";
+        const string pageText = "Page requiring keyword extraction";
+        var filePath = Path.Combine(temporaryDirectory.Path, fileName);
+        await File.WriteAllTextAsync(filePath, "PDF fixture");
+
+        var extractor = new Mock<IPdfTextExtractor>();
+        extractor
+            .Setup(service => service.ExtractAsync(filePath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PdfTextExtractionResult(
+                [new PdfTextExtractionPage(1, pageText)],
+                "Timed out title",
+                "Timed out author"));
+
+        var book = Book.Create(
+            fileName,
+            "Timed out title",
+            "Timed out author",
+            "timeout-hash",
+            DateTimeOffset.UtcNow);
+        var bookReadRepository = new Mock<IBookReadRepository>();
+        bookReadRepository
+            .Setup(repository => repository.FindByFileName(
+                fileName,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(book);
+
+        var sender = new Mock<ISender>();
+        ConfigureSuccessfulIndexing(sender, book);
+        var scenario = CreateScenario(
+            temporaryDirectory.Path,
+            extractor.Object,
+            bookReadRepository.Object,
+            sender.Object,
+            failingKeywordText: pageText);
+
+        var result = await scenario.ExecuteAsync(
+            IndexingJob.Create(null),
+            CancellationToken.None);
+
+        Assert.False(result.IsError);
+        Assert.Equal(BookIndexingStatus.Failed, book.IndexingStatus);
+        sender.Verify(service => service.Send(
+            It.Is<AddIndexingJobFileErrorCommand>(command =>
+                command.FileName == fileName &&
+                command.Message.Contains("The keyword extraction request timed out.")),
+            CancellationToken.None), Times.Once);
+        sender.Verify(service => service.Send(
+            It.IsAny<MarkBookIndexedCommand>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Execute_ProgressCountsPendingAttemptsAndContinuesWhenProgressUpdateFails()
     {
         using var temporaryDirectory = new TemporaryDirectory();
@@ -520,7 +575,8 @@ public sealed class LibraryIndexingScenarioTests
         IPdfTextExtractor extractor,
         IBookReadRepository bookReadRepository,
         ISender sender,
-        string? failingEmbeddingText = null)
+        string? failingEmbeddingText = null,
+        string? failingKeywordText = null)
     {
         var embeddingGenerator = new Mock<IEmbeddingGenerator>();
         embeddingGenerator
@@ -539,8 +595,12 @@ public sealed class LibraryIndexingScenarioTests
             .Setup(extractor => extractor.ExtractAsync(
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string text, CancellationToken _) =>
-                text == "First page" ? new[] { "first" } : new[] { "last" });
+            .Returns((string text, CancellationToken _) =>
+                text == failingKeywordText
+                    ? Task.FromException<IReadOnlyList<string>>(
+                        new TaskCanceledException("The keyword extraction request timed out."))
+                    : Task.FromResult<IReadOnlyList<string>>(
+                        text == "First page" ? ["first"] : ["last"]));
 
         return new LibraryIndexingScenario(
             Options.Create(new BookStorageOptions { RootDirectory = rootDirectory }),

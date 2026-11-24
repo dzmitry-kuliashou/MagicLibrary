@@ -239,11 +239,14 @@ public sealed class IndexingWorkerTests
             Times.Never);
     }
 
-    [Fact]
-    public async Task ProcessAsync_ScenarioThrows_FailsJobWithExceptionMessage()
+    [Theory]
+    [InlineData(false, "The library scan failed unexpectedly.")]
+    [InlineData(true, "The indexing request timed out.")]
+    public async Task ProcessAsync_ScenarioException_FailsJobWithExceptionMessage(
+        bool isCancellation,
+        string failureMessage)
     {
         var indexingJob = IndexingJob.Create(null);
-        const string failureMessage = "The library scan failed unexpectedly.";
         var timestamp = new DateTimeOffset(2026, 11, 24, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FixedTimeProvider(timestamp);
         var indexingJobReadRepository = new Mock<IIndexingJobReadRepository>();
@@ -262,7 +265,9 @@ public sealed class IndexingWorkerTests
         scenario
             .Setup(candidate => candidate.ExecuteAsync(indexingJob, It.IsAny<CancellationToken>()))
             .Returns(Task.FromException<ErrorOr<Success>>(
-                new InvalidOperationException(failureMessage)));
+                isCancellation
+                    ? new TaskCanceledException(failureMessage)
+                    : new InvalidOperationException(failureMessage)));
         var sender = new Mock<ISender>();
         sender
             .Setup(service => service.Send(

@@ -3,6 +3,11 @@ using MagicLibrary.Application.ConfigurationOptions;
 using MagicLibrary.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]))
+{
+    builder.WebHost.UseUrls("http://localhost:5100");
+}
+
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
 builder.Services.AddControllers();

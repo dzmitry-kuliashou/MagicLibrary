@@ -5,4 +5,6 @@ public sealed class KeywordExtractionOptions
     public const string SectionName = "KeywordExtraction";
 
     public int MaxResults { get; set; } = 3;
+
+    public int MaxGeneratedTokens { get; set; } = 128;
 }

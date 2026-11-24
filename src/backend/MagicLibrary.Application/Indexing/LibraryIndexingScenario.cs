@@ -76,7 +76,9 @@ public sealed class LibraryIndexingScenario(
                     booksToIndex.Add((book, extraction));
                 }
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException ||
+                !cancellationToken.IsCancellationRequested)
             {
                 fileError = $"{exception.GetType().Name}: {exception.Message}";
             }
@@ -174,7 +176,9 @@ public sealed class LibraryIndexingScenario(
                     }
                 }
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (Exception exception) when (
+                exception is not OperationCanceledException ||
+                !cancellationToken.IsCancellationRequested)
             {
                 fileError = exception.Message;
             }

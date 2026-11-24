@@ -64,7 +64,9 @@ public sealed class IndexingWorker(
             var scenario = indexingScenarioFactory.GetScenario(startedJob);
             scenarioResult = await scenario.ExecuteAsync(startedJob, cancellationToken);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (
+            exception is not OperationCanceledException ||
+            !cancellationToken.IsCancellationRequested)
         {
             var failureMessage = string.IsNullOrWhiteSpace(exception.Message)
                 ? exception.GetType().Name
