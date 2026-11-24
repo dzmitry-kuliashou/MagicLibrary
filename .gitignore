@@ -185,3 +185,6 @@ _site/
 
 # github copilot instructions
 .github/
+
+# Local book library
+/Library/

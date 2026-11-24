@@ -19,6 +19,8 @@ services:
       Embedding__Model: "${EMBEDDING_MODEL:-nomic-embed-text:latest}"
       Embedding__Dimensions: "${EMBEDDING_DIMENSIONS:-768}"
     depends_on:
+      ollama:
+        condition: service_started
       postgres:
         condition: service_healthy
     ports:
