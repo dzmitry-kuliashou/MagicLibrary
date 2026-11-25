@@ -1,8 +1,8 @@
 using MagicLibrary.Api.Results;
 using MagicLibrary.Application.Commands;
 using MagicLibrary.Application.Queries;
-using MagicLibrary.Contract.IndexingJobs.Requests;
-using MagicLibrary.Contract.IndexingJobs.Responses;
+using MagicLibrary.Contract.Requests;
+using MagicLibrary.Contract.Responses;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 

@@ -1,3 +1,3 @@
-namespace MagicLibrary.Contract.IndexingJobs.Responses;
+namespace MagicLibrary.Contract.Responses;
 
 public sealed record RunIndexingResponse(Guid IndexingJobId);

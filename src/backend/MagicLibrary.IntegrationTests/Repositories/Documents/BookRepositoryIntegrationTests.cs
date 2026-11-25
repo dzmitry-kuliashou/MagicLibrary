@@ -267,21 +267,22 @@ public sealed class BookRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ListAsync_WithSkipAndTake_ReturnsBooksOrderedById()
+    public async Task ListAsync_WithPageAndPageSize_ReturnsOrderedPageAndTotalCount()
     {
-        var existingBooks = await _readRepository.ListAsync(0, int.MaxValue, CancellationToken.None);
         var createdBooks = await CreateBooksAsync(3, CancellationToken.None);
-        var expectedIds = existingBooks
-            .Concat(createdBooks)
-            .OrderBy(book => book.Id.ToString("N"), StringComparer.Ordinal)
-            .Skip(1)
+        var allBooks = await _readRepository.ListAsync(0, int.MaxValue, CancellationToken.None);
+        var expectedIds = allBooks.Items
+            .Skip(2)
             .Take(2)
             .Select(book => book.Id)
             .ToArray();
 
         var page = await _readRepository.ListAsync(1, 2, CancellationToken.None);
 
-        Assert.Equal(expectedIds, page.Select(book => book.Id));
+        Assert.Equal(expectedIds, page.Items.Select(book => book.Id));
+        Assert.Equal(allBooks.Items.Count, page.TotalCount);
+        Assert.Equal(allBooks.TotalCount, page.TotalCount);
+        Assert.All(createdBooks, book => Assert.Contains(allBooks.Items, listedBook => listedBook.Id == book.Id));
     }
 
     [Fact]

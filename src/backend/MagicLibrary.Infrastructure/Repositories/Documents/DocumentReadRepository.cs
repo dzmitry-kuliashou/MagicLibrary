@@ -18,17 +18,20 @@ internal abstract class DocumentReadRepository<TAggregate, TDocument>(IQuerySess
         return document is null ? null : ToAggregate(document);
     }
 
-    public async Task<IReadOnlyList<TAggregate>> ListAsync(
-        int skip,
-        int take,
+    public async Task<(IReadOnlyList<TAggregate> Items, int TotalCount)> ListAsync(
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
-        var documents = await querySession.Query<TDocument>()
+        var skip = (int)Math.Min((long)page * pageSize, int.MaxValue);
+        var query = querySession.Query<TDocument>();
+        var totalCount = await query.CountAsync(cancellationToken);
+        var documents = await query
             .OrderBy(document => document.Id)
             .Skip(skip)
-            .Take(take)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return documents.Select(ToAggregate).ToList();
+        return (documents.Select(ToAggregate).ToList(), totalCount);
     }
 }

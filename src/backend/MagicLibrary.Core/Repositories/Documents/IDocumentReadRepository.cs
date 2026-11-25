@@ -7,5 +7,8 @@ public interface IDocumentReadRepository<TAggregate>
 {
     Task<TAggregate?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<TAggregate>> ListAsync(int skip, int take, CancellationToken cancellationToken);
+    Task<(IReadOnlyList<TAggregate> Items, int TotalCount)> ListAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
 }
