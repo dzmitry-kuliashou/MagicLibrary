@@ -144,14 +144,6 @@ public sealed class LibraryIndexingScenarioTests
         var extractor = new Mock<IPdfTextExtractor>();
         extractor
             .Setup(service => service.ExtractAsync(
-                skippedFilePath,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PdfTextExtractionResult(
-                [new PdfTextExtractionPage(1, "Skipped page")],
-                "Skipped title",
-                "Skipped author"));
-        extractor
-            .Setup(service => service.ExtractAsync(
                 pendingFilePath,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PdfTextExtractionResult(
@@ -214,6 +206,12 @@ public sealed class LibraryIndexingScenarioTests
         Assert.False(result.IsError);
         Assert.Equal(skippedStatus, skippedBook.IndexingStatus);
         Assert.Equal(BookIndexingStatus.Indexed, pendingBook.IndexingStatus);
+        extractor.Verify(service => service.ExtractAsync(
+            skippedFilePath,
+            CancellationToken.None), Times.Never);
+        extractor.Verify(service => service.ExtractAsync(
+            pendingFilePath,
+            CancellationToken.None), Times.Once);
         sender.Verify(service => service.Send(
             It.Is<MarkBookIndexingStartedCommand>(command =>
                 command.BookId == pendingBook.Id),

@@ -52,10 +52,11 @@ public sealed class LibraryIndexingScenario(
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var extraction = await pdfTextExtractor.ExtractAsync(filePath, cancellationToken);
                 var book = await bookReadRepository.FindByFileName(fileName, cancellationToken);
+
                 if (book is null)
                 {
+                    var extraction = await pdfTextExtractor.ExtractAsync(filePath, cancellationToken);
                     var createResult = await sender.Send(
                         new CreateBookCommand(fileName, extraction.Title, extraction.Author),
                         cancellationToken);
@@ -68,11 +69,12 @@ public sealed class LibraryIndexingScenario(
                     else
                     {
                         book = createResult.Value;
+                        booksToIndex.Add((book, extraction));
                     }
                 }
-
-                if (book is { IndexingStatus: BookIndexingStatus.Pending })
+                else if (book.IndexingStatus == BookIndexingStatus.Pending)
                 {
+                    var extraction = await pdfTextExtractor.ExtractAsync(filePath, cancellationToken);
                     booksToIndex.Add((book, extraction));
                 }
             }
