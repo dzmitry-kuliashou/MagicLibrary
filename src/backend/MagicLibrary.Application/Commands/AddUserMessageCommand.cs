@@ -4,6 +4,7 @@ using MagicLibrary.Application.Errors;
 using MagicLibrary.Application.Validation;
 using MagicLibrary.Core.Aggregates;
 using MagicLibrary.Core.Repositories.Documents;
+using MagicLibrary.Core.ValueObjects;
 using MediatR;
 
 namespace MagicLibrary.Application.Commands;
@@ -34,6 +35,11 @@ public sealed class AddUserMessageCommandHandler(
         if (conversation is null)
         {
             return ConversationErrors.ConversationNotFound(request.ConversationId);
+        }
+
+        if (conversation.Messages.LastOrDefault()?.Status == MessageStatus.Pending)
+        {
+            return ConversationErrors.AssistantResponsePending;
         }
 
         conversation.AddUserMessage(request.Content, timeProvider.GetUtcNow());

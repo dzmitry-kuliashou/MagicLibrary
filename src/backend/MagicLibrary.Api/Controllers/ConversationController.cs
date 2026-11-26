@@ -37,6 +37,7 @@ public sealed class ConversationController(ISender sender) : ControllerBase
                 conversation.Messages
                     .Select(message => new ConversationMessageResponse(
                         message.Role.ToString(),
+                        message.Status.ToString(),
                         message.Content,
                         message.SourceReferences
                             .Select(sourceReference => new ConversationSourceReferenceResponse(

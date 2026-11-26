@@ -18,6 +18,7 @@ internal static class ConversationDocumentMapper
                 .Select(message => new ConversationMessageDocument
                 {
                     Role = message.Role,
+                    Status = message.Status,
                     Content = message.Content,
                     SourceReferences = message.SourceReferences
                         .Select(sourceReference => new ConversationSourceReferenceDocument
@@ -43,7 +44,8 @@ internal static class ConversationDocumentMapper
                     sourceReference.BookId,
                     sourceReference.BookTitle,
                     sourceReference.PageNumber,
-                    sourceReference.ChunkId)))
+                    sourceReference.ChunkId)),
+                message.Status)
             )
             .ToList();
 

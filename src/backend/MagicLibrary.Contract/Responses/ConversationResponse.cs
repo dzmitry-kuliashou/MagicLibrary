@@ -5,4 +5,7 @@ public sealed record ConversationResponse(
     string Name,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    IEnumerable<ConversationMessageResponse> Messages);
+    IEnumerable<ConversationMessageResponse> Messages)
+{
+    public bool IsLastMessagePending => Messages.LastOrDefault()?.Status == "Pending";
+}

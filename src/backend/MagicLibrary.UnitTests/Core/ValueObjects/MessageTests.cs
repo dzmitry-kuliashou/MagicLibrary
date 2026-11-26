@@ -20,12 +20,16 @@ public sealed class MessageTests
     }
 
     [Fact]
-    public void AddAssistantMessage_CreatesMessageWithReferences()
+    public void CompleteAssistantResponse_CreatesMessageWithReferences()
     {
         var conversation = CreateConversation();
         var references = new List<SourceReference> { CreateSourceReference() };
 
-        conversation.AddAssistantMessage("The answer is in chapter 4.", references, CreatedAt.AddMinutes(1));
+        conversation.BeginAssistantResponse(CreatedAt.AddMinutes(1));
+        conversation.CompleteAssistantResponse(
+            "The answer is in chapter 4.",
+            references,
+            CreatedAt.AddMinutes(2));
         references.Clear();
 
         var message = conversation.Messages[^1];
@@ -36,6 +40,20 @@ public sealed class MessageTests
             reference => Assert.Equal("Book title", reference.BookTitle));
         Assert.Throws<NotSupportedException>(() =>
             ((IList<SourceReference>)message.SourceReferences).Clear());
+    }
+
+    [Theory]
+    [InlineData(MessageRole.System, MessageStatus.Pending)]
+    [InlineData(MessageRole.System, MessageStatus.Failed)]
+    [InlineData(MessageRole.System, MessageStatus.Interrupted)]
+    [InlineData(MessageRole.User, MessageStatus.Pending)]
+    [InlineData(MessageRole.User, MessageStatus.Failed)]
+    [InlineData(MessageRole.User, MessageStatus.Interrupted)]
+    public void Create_NonAssistantMessageCannotHaveNonCompletedStatus(
+        MessageRole role,
+        MessageStatus status)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => Message.Create(role, "Message content", [], status));
     }
 
     private static DateTimeOffset CreatedAt => new(2026, 4, 5, 6, 7, 8, TimeSpan.Zero);

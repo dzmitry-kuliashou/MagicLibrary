@@ -17,6 +17,8 @@ public sealed class ConversationMessageDocument
 {
     public MessageRole Role { get; set; }
 
+    public MessageStatus Status { get; set; }
+
     public string Content { get; set; } = string.Empty;
 
     public List<ConversationSourceReferenceDocument> SourceReferences { get; set; } = [];

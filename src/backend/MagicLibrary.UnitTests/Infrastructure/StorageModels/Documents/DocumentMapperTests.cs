@@ -94,6 +94,7 @@ public sealed class DocumentMapperTests
 
             Assert.Equal(originalMessage.Role, restoredMessage.Role);
             Assert.Equal(originalMessage.Content, restoredMessage.Content);
+            Assert.Equal(originalMessage.Status, restoredMessage.Status);
             Assert.Equal(originalMessage.SourceReferences.Count, restoredMessage.SourceReferences.Count);
             for (var referenceIndex = 0; referenceIndex < originalMessage.SourceReferences.Count; referenceIndex++)
             {
@@ -105,6 +106,21 @@ public sealed class DocumentMapperTests
                 Assert.Equal(originalReference.PageNumber, restoredReference.PageNumber);
                 Assert.Equal(originalReference.ChunkId, restoredReference.ChunkId);
             }
+        }
+    }
+
+    [Fact]
+    public void MapToDocumentAndBack_ConversationPreservesMessageStatuses()
+    {
+        foreach (var status in Enum.GetValues<MessageStatus>())
+        {
+            var original = CreateConversation(status);
+
+            var document = ConversationDocumentMapper.ToDocument(original);
+            var restored = ConversationDocumentMapper.ToAggregate(document);
+
+            Assert.Equal(status, restored.Messages[^1].Status);
+            Assert.Equal(status == MessageStatus.Completed ? "Answer" : string.Empty, restored.Messages[^1].Content);
         }
     }
 
@@ -137,21 +153,38 @@ public sealed class DocumentMapperTests
         return job;
     }
 
-    private static Conversation CreateConversation()
+    private static Conversation CreateConversation(MessageStatus assistantStatus = MessageStatus.Completed)
     {
         var createdAt = new DateTimeOffset(2026, 4, 5, 6, 7, 8, TimeSpan.Zero);
         var conversation = Conversation.Create("Research", createdAt, "System instructions");
         conversation.AddUserMessage("Question", createdAt.AddMinutes(1));
-        conversation.AddAssistantMessage(
-            "Answer",
-            [
-                SourceReference.Create(
-                    Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                    "Book title",
-                    4,
-                    Guid.Parse("22222222-2222-2222-2222-222222222222"))
-            ],
-            createdAt.AddMinutes(2));
+        conversation.BeginAssistantResponse(createdAt.AddMinutes(2));
+
+        switch (assistantStatus)
+        {
+            case MessageStatus.Pending:
+                break;
+            case MessageStatus.Completed:
+                conversation.CompleteAssistantResponse(
+                    "Answer",
+                    [
+                        SourceReference.Create(
+                            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                            "Book title",
+                            4,
+                            Guid.Parse("22222222-2222-2222-2222-222222222222"))
+                    ],
+                    createdAt.AddMinutes(3));
+                break;
+            case MessageStatus.Failed:
+                conversation.FailAssistantResponse(createdAt.AddMinutes(3));
+                break;
+            case MessageStatus.Interrupted:
+                conversation.InterruptAssistantResponse(createdAt.AddMinutes(3));
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(assistantStatus), assistantStatus, null);
+        }
 
         return conversation;
     }

@@ -9,21 +9,18 @@ using MediatR;
 
 namespace MagicLibrary.Application.Commands;
 
-public sealed record AddAssistantCommand(
-    Guid ConversationId,
-    string Content,
-    IEnumerable<SourceReference> SourceReferences)
+public sealed record BeginAssistantResponseCommand(Guid ConversationId)
     : IRequest<ErrorOr<Conversation>>;
 
-public sealed class AddAssistantCommandHandler(
-    IValidator<AddAssistantCommand> validator,
+public sealed class BeginAssistantResponseCommandHandler(
+    IValidator<BeginAssistantResponseCommand> validator,
     IConversationReadRepository conversationReadRepository,
     IConversationWriteRepository conversationWriteRepository,
     TimeProvider timeProvider)
-    : IRequestHandler<AddAssistantCommand, ErrorOr<Conversation>>
+    : IRequestHandler<BeginAssistantResponseCommand, ErrorOr<Conversation>>
 {
     public async Task<ErrorOr<Conversation>> Handle(
-        AddAssistantCommand request,
+        BeginAssistantResponseCommand request,
         CancellationToken cancellationToken)
     {
         var validationResult = await validator.ValidateAsync(request, cancellationToken);
@@ -40,10 +37,12 @@ public sealed class AddAssistantCommandHandler(
             return ConversationErrors.ConversationNotFound(request.ConversationId);
         }
 
-        conversation.AddAssistantMessage(
-            request.Content,
-            request.SourceReferences,
-            timeProvider.GetUtcNow());
+        if (conversation.Messages.LastOrDefault()?.Status == MessageStatus.Pending)
+        {
+            return ConversationErrors.AssistantResponsePending;
+        }
+
+        conversation.BeginAssistantResponse(timeProvider.GetUtcNow());
         return await conversationWriteRepository.UpdateAsync(conversation, cancellationToken);
     }
 }

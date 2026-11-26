@@ -116,6 +116,141 @@ public sealed class ConversationTests
         Assert.Equal(updatedAt, conversation.UpdatedAt);
     }
 
+    [Fact]
+    public void BeginAssistantResponse_AddsPendingMessage()
+    {
+        var conversation = CreateConversation();
+        conversation.AddUserMessage(
+            "Find the chapter about search.",
+            new DateTimeOffset(2026, 4, 5, 6, 9, 8, TimeSpan.Zero));
+        var previousMessages = conversation.Messages.ToArray();
+        var updatedAt = new DateTimeOffset(2026, 4, 5, 6, 10, 8, TimeSpan.Zero);
+
+        var assistantMessage = conversation.BeginAssistantResponse(updatedAt);
+
+        Assert.Equal(previousMessages.Length + 1, conversation.Messages.Count);
+        Assert.Same(previousMessages[0], conversation.Messages[0]);
+        Assert.Same(previousMessages[1], conversation.Messages[1]);
+        Assert.Same(assistantMessage, conversation.Messages[^1]);
+        Assert.Equal(MessageRole.Assistant, assistantMessage.Role);
+        Assert.Equal(MessageStatus.Pending, assistantMessage.Status);
+        Assert.Empty(assistantMessage.Content);
+        Assert.Empty(assistantMessage.SourceReferences);
+        Assert.Equal(updatedAt, conversation.UpdatedAt);
+    }
+
+    [Fact]
+    public void CompleteAssistantResponse_StoresFullAnswerAndMarksCompleted()
+    {
+        var conversation = CreateConversation();
+        conversation.AddUserMessage(
+            "Find the chapter about search.",
+            new DateTimeOffset(2026, 4, 5, 6, 9, 8, TimeSpan.Zero));
+        var pendingMessage = conversation.BeginAssistantResponse(
+            new DateTimeOffset(2026, 4, 5, 6, 10, 8, TimeSpan.Zero));
+        var previousMessages = conversation.Messages.Take(2).ToArray();
+        var answer = "The full answer assembled from every streamed delta.";
+        var updatedAt = new DateTimeOffset(2026, 4, 5, 6, 11, 8, TimeSpan.Zero);
+
+        conversation.CompleteAssistantResponse(answer, [], updatedAt);
+
+        Assert.Equal(previousMessages.Length + 1, conversation.Messages.Count);
+        Assert.Same(previousMessages[0], conversation.Messages[0]);
+        Assert.Same(previousMessages[1], conversation.Messages[1]);
+        var completedMessage = conversation.Messages[^1];
+        Assert.NotSame(pendingMessage, completedMessage);
+        Assert.Equal(MessageRole.Assistant, completedMessage.Role);
+        Assert.Equal(answer, completedMessage.Content);
+        Assert.Equal(MessageStatus.Completed, completedMessage.Status);
+        Assert.Empty(completedMessage.SourceReferences);
+        Assert.Equal(updatedAt, conversation.UpdatedAt);
+    }
+
+    [Theory]
+    [InlineData(MessageStatus.Failed)]
+    [InlineData(MessageStatus.Interrupted)]
+    public void FailOrInterruptAssistantResponse_FromPending_StoresTerminalStatusWithoutContent(
+        MessageStatus terminalStatus)
+    {
+        var conversation = CreateConversation();
+        conversation.AddUserMessage(
+            "Find the chapter about search.",
+            new DateTimeOffset(2026, 4, 5, 6, 9, 8, TimeSpan.Zero));
+        var pendingMessage = conversation.BeginAssistantResponse(
+            new DateTimeOffset(2026, 4, 5, 6, 10, 8, TimeSpan.Zero));
+        var previousMessages = conversation.Messages.Take(2).ToArray();
+        var updatedAt = new DateTimeOffset(2026, 4, 5, 6, 11, 8, TimeSpan.Zero);
+
+        if (terminalStatus == MessageStatus.Failed)
+        {
+            conversation.FailAssistantResponse(updatedAt);
+        }
+        else
+        {
+            conversation.InterruptAssistantResponse(updatedAt);
+        }
+
+        Assert.Equal(previousMessages.Length + 1, conversation.Messages.Count);
+        Assert.Same(previousMessages[0], conversation.Messages[0]);
+        Assert.Same(previousMessages[1], conversation.Messages[1]);
+        var terminalMessage = conversation.Messages[^1];
+        Assert.NotSame(pendingMessage, terminalMessage);
+        Assert.Equal(MessageRole.Assistant, terminalMessage.Role);
+        Assert.Equal(terminalStatus, terminalMessage.Status);
+        Assert.Empty(terminalMessage.Content);
+        Assert.Empty(terminalMessage.SourceReferences);
+        Assert.Equal(updatedAt, conversation.UpdatedAt);
+    }
+
+    [Fact]
+    public void AddUserMessage_WhenLastMessagePending_RejectsWithoutChangingHistory()
+    {
+        var conversation = CreateConversation();
+        conversation.AddUserMessage(
+            "Find the chapter about search.",
+            new DateTimeOffset(2026, 4, 5, 6, 9, 8, TimeSpan.Zero));
+        conversation.BeginAssistantResponse(
+            new DateTimeOffset(2026, 4, 5, 6, 10, 8, TimeSpan.Zero));
+        var previousMessages = conversation.Messages.ToArray();
+        var previousUpdatedAt = conversation.UpdatedAt;
+
+        Assert.ThrowsAny<ArgumentException>(() => conversation.AddUserMessage(
+            "Another question",
+            previousUpdatedAt.AddMinutes(1)));
+
+        Assert.Equal(previousMessages.Length, conversation.Messages.Count);
+        for (var index = 0; index < previousMessages.Length; index++)
+        {
+            Assert.Same(previousMessages[index], conversation.Messages[index]);
+        }
+
+        Assert.Equal(previousUpdatedAt, conversation.UpdatedAt);
+    }
+
+    [Fact]
+    public void BeginAssistantResponse_WhenLastMessagePending_RejectsWithoutChangingHistory()
+    {
+        var conversation = CreateConversation();
+        conversation.AddUserMessage(
+            "Find the chapter about search.",
+            new DateTimeOffset(2026, 4, 5, 6, 9, 8, TimeSpan.Zero));
+        conversation.BeginAssistantResponse(
+            new DateTimeOffset(2026, 4, 5, 6, 10, 8, TimeSpan.Zero));
+        var previousMessages = conversation.Messages.ToArray();
+        var previousUpdatedAt = conversation.UpdatedAt;
+
+        Assert.ThrowsAny<ArgumentException>(() =>
+            conversation.BeginAssistantResponse(previousUpdatedAt.AddMinutes(1)));
+
+        Assert.Equal(previousMessages.Length, conversation.Messages.Count);
+        for (var index = 0; index < previousMessages.Length; index++)
+        {
+            Assert.Same(previousMessages[index], conversation.Messages[index]);
+        }
+
+        Assert.Equal(previousUpdatedAt, conversation.UpdatedAt);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -142,73 +277,6 @@ public sealed class ConversationTests
         var originalCount = conversation.Messages.Count;
 
         Assert.ThrowsAny<ArgumentException>(() => conversation.AddUserMessage("Question", default));
-
-        Assert.Equal(originalUpdatedAt, conversation.UpdatedAt);
-        Assert.Equal(originalCount, conversation.Messages.Count);
-    }
-
-    [Fact]
-    public void AddAssistantMessage_ContentAndReferences_AppendsAssistantMessage()
-    {
-        var conversation = CreateConversation();
-        var references = new[] { CreateSourceReference() };
-        var updatedAt = new DateTimeOffset(2026, 4, 5, 6, 10, 8, TimeSpan.Zero);
-
-        conversation.AddAssistantMessage("The answer is in chapter 4.", references, updatedAt);
-
-        var message = conversation.Messages[^1];
-        Assert.Equal(MessageRole.Assistant, message.Role);
-        Assert.Equal("The answer is in chapter 4.", message.Content);
-        Assert.Equal(references, message.SourceReferences);
-        Assert.Equal(updatedAt, conversation.UpdatedAt);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData(" ")]
-    public void AddAssistantMessage_BlankContent_RejectsValueWithoutChangingHistory(string? content)
-    {
-        var conversation = CreateConversation();
-        var originalUpdatedAt = conversation.UpdatedAt;
-        var originalCount = conversation.Messages.Count;
-
-        Assert.ThrowsAny<ArgumentException>(() => conversation.AddAssistantMessage(
-            content!,
-            [],
-            originalUpdatedAt.AddMinutes(1)));
-
-        Assert.Equal(originalUpdatedAt, conversation.UpdatedAt);
-        Assert.Equal(originalCount, conversation.Messages.Count);
-    }
-
-    [Fact]
-    public void AddAssistantMessage_NullSourceReferences_RejectsValueWithoutChangingHistory()
-    {
-        var conversation = CreateConversation();
-        var originalUpdatedAt = conversation.UpdatedAt;
-        var originalCount = conversation.Messages.Count;
-
-        Assert.Throws<ArgumentNullException>(() => conversation.AddAssistantMessage(
-            "Answer",
-            null!,
-            originalUpdatedAt.AddMinutes(1)));
-
-        Assert.Equal(originalUpdatedAt, conversation.UpdatedAt);
-        Assert.Equal(originalCount, conversation.Messages.Count);
-    }
-
-    [Fact]
-    public void AddAssistantMessage_DefaultTimestamp_RejectsValueWithoutChangingHistory()
-    {
-        var conversation = CreateConversation();
-        var originalUpdatedAt = conversation.UpdatedAt;
-        var originalCount = conversation.Messages.Count;
-
-        Assert.ThrowsAny<ArgumentException>(() => conversation.AddAssistantMessage(
-            "Answer",
-            [],
-            default));
 
         Assert.Equal(originalUpdatedAt, conversation.UpdatedAt);
         Assert.Equal(originalCount, conversation.Messages.Count);

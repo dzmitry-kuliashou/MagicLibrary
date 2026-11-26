@@ -49,10 +49,11 @@ public sealed class ConversationControllerTests
         var bookId = Guid.NewGuid();
         var chunkId = Guid.NewGuid();
         var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
-        var updatedAt = createdAt.AddMinutes(2);
+        var updatedAt = createdAt.AddMinutes(3);
         var conversation = Conversation.Create("Research", createdAt, systemMessage);
         conversation.AddUserMessage(userContent, createdAt.AddMinutes(1));
-        conversation.AddAssistantMessage(
+        conversation.BeginAssistantResponse(createdAt.AddMinutes(2));
+        conversation.CompleteAssistantResponse(
             assistantContent,
             [SourceReference.Create(bookId, bookTitle, pageNumber, chunkId)],
             updatedAt);
@@ -72,23 +73,27 @@ public sealed class ConversationControllerTests
         Assert.Equal(conversation.Name, responseBody.Name);
         Assert.Equal(createdAt, responseBody.CreatedAt);
         Assert.Equal(updatedAt, responseBody.UpdatedAt);
+        Assert.False(responseBody.IsLastMessagePending);
         Assert.Collection(
             responseBody.Messages,
             message =>
             {
                 Assert.Equal("System", message.Role);
+                Assert.Equal("Completed", message.Status);
                 Assert.Equal(systemMessage, message.Content);
                 Assert.Empty(message.SourceReferences);
             },
             message =>
             {
                 Assert.Equal("User", message.Role);
+                Assert.Equal("Completed", message.Status);
                 Assert.Equal(userContent, message.Content);
                 Assert.Empty(message.SourceReferences);
             },
             message =>
             {
                 Assert.Equal("Assistant", message.Role);
+                Assert.Equal("Completed", message.Status);
                 Assert.Equal(assistantContent, message.Content);
                 var sourceReference = Assert.Single(message.SourceReferences);
                 Assert.Equal(bookId, sourceReference.BookId);
@@ -101,6 +106,42 @@ public sealed class ConversationControllerTests
                 It.Is<GetConversationByIdQuery>(query => query.Id == conversation.Id),
                 CancellationToken.None),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task GetById_LastMessagePending_MarksOnlyLastMessageAsPending()
+    {
+        var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
+        var conversation = Conversation.Create("Research", createdAt, "System instructions");
+        conversation.AddUserMessage("Question", createdAt.AddMinutes(1));
+        conversation.BeginAssistantResponse(createdAt.AddMinutes(2));
+        var sender = new Mock<ISender>();
+        sender
+            .Setup(service => service.Send(
+                It.Is<GetConversationByIdQuery>(query => query.Id == conversation.Id),
+                CancellationToken.None))
+            .ReturnsAsync((ErrorOr<Conversation>)conversation);
+        var controller = new ConversationController(sender.Object);
+
+        var result = await controller.GetById(conversation.Id, CancellationToken.None);
+
+        var response = Assert.IsType<OkObjectResult>(result);
+        var responseBody = Assert.IsType<ConversationResponse>(response.Value);
+        Assert.True(responseBody.IsLastMessagePending);
+        Assert.Collection(
+            responseBody.Messages,
+            message =>
+            {
+                Assert.Equal("Completed", message.Status);
+            },
+            message =>
+            {
+                Assert.Equal("Completed", message.Status);
+            },
+            message =>
+            {
+                Assert.Equal("Pending", message.Status);
+            });
     }
 
     [Fact]

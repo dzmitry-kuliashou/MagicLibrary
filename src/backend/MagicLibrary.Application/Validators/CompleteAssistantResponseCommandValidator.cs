@@ -5,9 +5,9 @@ using MagicLibrary.Application.Validation;
 
 namespace MagicLibrary.Application.Validators;
 
-public sealed class AddAssistantCommandValidator : AbstractValidator<AddAssistantCommand>
+public sealed class CompleteAssistantResponseCommandValidator : AbstractValidator<CompleteAssistantResponseCommand>
 {
-    public AddAssistantCommandValidator()
+    public CompleteAssistantResponseCommandValidator()
     {
         RuleFor(command => command.ConversationId)
             .NotEmpty()

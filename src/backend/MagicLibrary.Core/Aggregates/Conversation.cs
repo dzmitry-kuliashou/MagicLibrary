@@ -62,12 +62,29 @@ public sealed class Conversation : AggregateRoot
     {
         Guard.Against.NullOrWhiteSpace(content);
         Guard.Against.Default(updatedAt);
+        EnsureNoPendingAssistantResponse();
 
         _messages.Add(Message.Create(MessageRole.User, content, []));
         UpdatedAt = updatedAt;
     }
 
-    public void AddAssistantMessage(
+    public Message BeginAssistantResponse(DateTimeOffset updatedAt)
+    {
+        Guard.Against.Default(updatedAt);
+        EnsureNoPendingAssistantResponse();
+
+        var message = Message.Create(
+            MessageRole.Assistant,
+            string.Empty,
+            [],
+            MessageStatus.Pending);
+
+        _messages.Add(message);
+        UpdatedAt = updatedAt;
+        return message;
+    }
+
+    public void CompleteAssistantResponse(
         string content,
         IEnumerable<SourceReference> sourceReferences,
         DateTimeOffset updatedAt)
@@ -76,7 +93,51 @@ public sealed class Conversation : AggregateRoot
         Guard.Against.Null(sourceReferences);
         Guard.Against.Default(updatedAt);
 
-        _messages.Add(Message.Create(MessageRole.Assistant, content, sourceReferences));
+        ReplaceAssistantResponse(content, sourceReferences, MessageStatus.Completed, updatedAt);
+    }
+
+    public void FailAssistantResponse(DateTimeOffset updatedAt)
+    {
+        Guard.Against.Default(updatedAt);
+
+        ReplaceAssistantResponse(string.Empty, [], MessageStatus.Failed, updatedAt);
+    }
+
+    public void InterruptAssistantResponse(DateTimeOffset updatedAt)
+    {
+        Guard.Against.Default(updatedAt);
+
+        ReplaceAssistantResponse(string.Empty, [], MessageStatus.Interrupted, updatedAt);
+    }
+
+    private void EnsureNoPendingAssistantResponse()
+    {
+        Guard.Against.InvalidInput(
+            _messages,
+            nameof(Messages),
+            messages => messages.Count == 0
+                || messages[^1].Status != MessageStatus.Pending,
+            "Cannot add a message while the latest conversation message is a Pending assistant response.");
+    }
+
+    private void ReplaceAssistantResponse(
+        string content,
+        IEnumerable<SourceReference> sourceReferences,
+        MessageStatus status,
+        DateTimeOffset updatedAt)
+    {
+        Guard.Against.InvalidInput(
+            _messages,
+            nameof(Messages),
+            messages => messages.Count > 0 && messages[^1].Status == MessageStatus.Pending,
+            $"Cannot replace assistant response with status {status} unless the latest message is a pending assistant message.");
+
+        var pendingMessage = _messages[^1];
+        _messages[^1] = Message.Create(
+            MessageRole.Assistant,
+            content,
+            sourceReferences,
+            status);
         UpdatedAt = updatedAt;
     }
 }

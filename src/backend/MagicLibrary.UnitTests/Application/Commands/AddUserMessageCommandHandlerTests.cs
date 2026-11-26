@@ -76,6 +76,39 @@ public sealed class AddUserMessageCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_PendingAssistantResponse_ReturnsConflictWithoutPersisting()
+    {
+        var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
+        var updatedAt = createdAt.AddMinutes(1);
+        var conversation = Conversation.Create("Research", createdAt, "System instructions");
+        conversation.BeginAssistantResponse(updatedAt);
+        var readRepository = new Mock<IConversationReadRepository>();
+        readRepository
+            .Setup(repository => repository.GetByIdAsync(conversation.Id, CancellationToken.None))
+            .ReturnsAsync(conversation);
+        var writeRepository = new Mock<IConversationWriteRepository>();
+        var handler = new AddUserMessageCommandHandler(
+            new AddUserMessageCommandValidator(),
+            readRepository.Object,
+            writeRepository.Object,
+            new FixedTimeProvider(updatedAt.AddMinutes(1)));
+
+        var result = await handler.Handle(
+            new AddUserMessageCommand(conversation.Id, "Another question"),
+            CancellationToken.None);
+
+        var error = Assert.Single(result.Errors);
+        Assert.Equal(ErrorType.Conflict, error.Type);
+        Assert.Equal(ConversationErrors.AssistantResponsePending.Code, error.Code);
+        Assert.Equal(updatedAt, conversation.UpdatedAt);
+        writeRepository.Verify(
+            repository => repository.UpdateAsync(
+                It.IsAny<Conversation>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_ExistingConversation_AppendsAndPersistsUserMessage()
     {
         const string content = "Find the chapter about search.";

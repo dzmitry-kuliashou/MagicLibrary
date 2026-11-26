@@ -25,6 +25,11 @@ public static class ErrorOrActionResultMapper
             return new NotFoundObjectResult(errors);
         }
 
+        if (errors.All(error => error.Type == ErrorType.Conflict))
+        {
+            return new ConflictObjectResult(errors);
+        }
+
         return new ObjectResult(errors)
         {
             StatusCode = StatusCodes.Status500InternalServerError
