@@ -127,9 +127,7 @@ public sealed class LibraryIndexingScenario(
                         var embeddingTask = embeddingGenerator.GenerateAsync(
                             page.Text,
                             cancellationToken);
-                        var keywordsTask = keywordExtractor.ExtractAsync(
-                            page.Text,
-                            cancellationToken);
+                        var keywordsTask = ExtractKeywordsAsync(book, page, cancellationToken);
                         await Task.WhenAll(embeddingTask, keywordsTask);
                         var embedding = await embeddingTask;
                         keywords.AddRange(await keywordsTask);
@@ -217,6 +215,29 @@ public sealed class LibraryIndexingScenario(
         }
 
         return Result.Success;
+    }
+
+    private async Task<IReadOnlyList<string>> ExtractKeywordsAsync(
+        Book book,
+        PdfTextExtractionPage page,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await keywordExtractor.ExtractAsync(page.Text, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            //TODO: Log the exception using a logging framework (e.g., ILogger) instead of commenting it out. This will help in diagnosing issues during keyword extraction.
+            /*logger.LogWarning(
+                exception,
+                "Keyword extraction failed for book {BookId}, page {PageNumber}; continuing indexing.",
+                book.Id,
+                page.PageNumber);*/
+            return [];
+        }
     }
 
     private static string AppendErrorMessage(string? currentMessage, string additionalMessage) =>

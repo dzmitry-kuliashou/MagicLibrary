@@ -8,6 +8,7 @@ using MagicLibrary.Application.PdfProcessing;
 using MagicLibrary.Core.Aggregates;
 using MagicLibrary.Core.Repositories.Documents;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -310,11 +311,12 @@ public sealed class LibraryIndexingScenarioTests
     }
 
     [Fact]
-    public async Task Execute_KeywordExtractionTimeout_MarksBookFailedAndContinues()
+    public async Task Execute_KeywordExtractionTimeout_ContinuesProcessingPagesAndIndexesBook()
     {
         using var temporaryDirectory = new TemporaryDirectory();
         const string fileName = "timed-out-book.pdf";
-        const string pageText = "Page requiring keyword extraction";
+        const string failingPageText = "First page";
+        const string successfulPageText = "Last page";
         var filePath = Path.Combine(temporaryDirectory.Path, fileName);
         await File.WriteAllTextAsync(filePath, "PDF fixture");
 
@@ -322,7 +324,10 @@ public sealed class LibraryIndexingScenarioTests
         extractor
             .Setup(service => service.ExtractAsync(filePath, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PdfTextExtractionResult(
-                [new PdfTextExtractionPage(1, pageText)],
+                [
+                    new PdfTextExtractionPage(1, failingPageText),
+                    new PdfTextExtractionPage(2, successfulPageText)
+                ],
                 "Timed out title",
                 "Timed out author"));
 
@@ -341,27 +346,44 @@ public sealed class LibraryIndexingScenarioTests
 
         var sender = new Mock<ISender>();
         ConfigureSuccessfulIndexing(sender, book);
+        ReplaceDocumentChunksCommand? replacedChunks = null;
+        sender
+            .Setup(service => service.Send(
+                It.IsAny<ReplaceDocumentChunksCommand>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((ReplaceDocumentChunksCommand command, CancellationToken _) =>
+            {
+                replacedChunks = command;
+                return Task.FromResult<ErrorOr<Success>>(Result.Success);
+            });
         var scenario = CreateScenario(
             temporaryDirectory.Path,
             extractor.Object,
             bookReadRepository.Object,
             sender.Object,
-            failingKeywordText: pageText);
+            failingKeywordText: failingPageText);
 
         var result = await scenario.ExecuteAsync(
             IndexingJob.Create(null),
             CancellationToken.None);
 
         Assert.False(result.IsError);
-        Assert.Equal(BookIndexingStatus.Failed, book.IndexingStatus);
+        Assert.Equal(BookIndexingStatus.Indexed, book.IndexingStatus);
+        Assert.Equal(["last"], book.Keywords);
+        Assert.NotNull(replacedChunks);
+        Assert.Collection(
+            replacedChunks.Chunks,
+            chunk => Assert.Equal(failingPageText, chunk.Content),
+            chunk => Assert.Equal(successfulPageText, chunk.Content));
         sender.Verify(service => service.Send(
-            It.Is<AddIndexingJobFileErrorCommand>(command =>
-                command.FileName == fileName &&
-                command.Message.Contains("The keyword extraction request timed out.")),
-            CancellationToken.None), Times.Once);
+            It.IsAny<AddIndexingJobFileErrorCommand>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        sender.Verify(service => service.Send(
+            It.IsAny<MarkBookIndexingFailedCommand>(),
+            It.IsAny<CancellationToken>()), Times.Never);
         sender.Verify(service => service.Send(
             It.IsAny<MarkBookIndexedCommand>(),
-            It.IsAny<CancellationToken>()), Times.Never);
+            CancellationToken.None), Times.Once);
     }
 
     [Fact]

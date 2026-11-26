@@ -19,6 +19,7 @@ public sealed class DependencyInjectionTests
     {
         var services = new ServiceCollection();
         services.AddApplication();
+        services.AddLogging();
         services.AddSingleton<IOptions<BookStorageOptions>>(
             Options.Create(new BookStorageOptions()));
         services.AddSingleton<IBookReadRepository>(Mock.Of<IBookReadRepository>());

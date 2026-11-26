@@ -1,16 +1,14 @@
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MagicLibrary.Application.KeywordExtraction;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 
 namespace MagicLibrary.Infrastructure.KeywordExtraction;
 
-public sealed class OllamaKeywordExtractor(
-    HttpClient httpClient,
-    IOptions<KeywordExtractionOptions> options,
-    IConfiguration configuration) : IKeywordExtractor
+public sealed class KeywordExtractor(
+    IChatClient chatClient,
+    IOptions<KeywordExtractionOptions> options) : IKeywordExtractor
 {
     private const int MaximumPhraseWords = 3;
 
@@ -34,12 +32,6 @@ public sealed class OllamaKeywordExtractor(
                 "KeywordExtraction:MaxGeneratedTokens must be greater than zero.");
         }
 
-        var model = configuration["Chat:Model"];
-        if (string.IsNullOrWhiteSpace(model))
-        {
-            throw new InvalidOperationException("Chat:Model must be configured.");
-        }
-
         var prompt = string.Join(
             Environment.NewLine,
             $"Extract up to {maxResults} keyword phrases from the text below.",
@@ -50,30 +42,25 @@ public sealed class OllamaKeywordExtractor(
             "Text:",
             text);
 
-        using var response = await httpClient.PostAsJsonAsync(
-            "api/chat",
-            new OllamaChatRequest(
-                model,
-                [new OllamaChatMessage("user", prompt)],
-                false,
-                false,
-                "json",
-                new OllamaChatOptions(maxGeneratedTokens)),
+        var response = await chatClient.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, prompt)],
+            new ChatOptions
+            {
+                MaxOutputTokens = maxGeneratedTokens,
+                Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None },
+                ResponseFormat = ChatResponseFormat.Json
+            },
             cancellationToken);
-        response.EnsureSuccessStatusCode();
 
-        var chatResponse = await response.Content.ReadFromJsonAsync<OllamaChatResponse>(
-            cancellationToken: cancellationToken);
-        var content = chatResponse?.Message?.Content;
-        if (content is null)
+        if (string.IsNullOrWhiteSpace(response.Text))
         {
-            throw new InvalidOperationException("Ollama returned an invalid chat response.");
+            throw new InvalidOperationException("The chat client returned an empty keyword response.");
         }
 
-        var keywordResponse = JsonSerializer.Deserialize<OllamaKeywordResponse>(content);
+        var keywordResponse = JsonSerializer.Deserialize<KeywordResponse>(response.Text);
         if (keywordResponse?.Keywords is not { } keywords)
         {
-            throw new InvalidOperationException("Ollama returned an invalid keyword response.");
+            throw new InvalidOperationException("The chat client returned an invalid keyword response.");
         }
 
         return keywords
@@ -91,25 +78,6 @@ public sealed class OllamaKeywordExtractor(
         return phrase.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
     }
 
-    private sealed record OllamaChatRequest(
-        string Model,
-        IReadOnlyList<OllamaChatMessage> Messages,
-        bool Stream,
-        bool Think,
-        string Format,
-        OllamaChatOptions Options);
-
-    private sealed record OllamaChatMessage(string Role, string Content);
-
-    private sealed record OllamaChatOptions(
-        [property: JsonPropertyName("num_predict")] int NumPredict);
-
-    private sealed record OllamaKeywordResponse(
+    private sealed record KeywordResponse(
         [property: JsonPropertyName("keywords")] string?[]? Keywords);
-
-    private sealed record OllamaChatResponse(
-        [property: JsonPropertyName("message")] OllamaChatResponseMessage? Message);
-
-    private sealed record OllamaChatResponseMessage(
-        [property: JsonPropertyName("content")] string? Content);
 }

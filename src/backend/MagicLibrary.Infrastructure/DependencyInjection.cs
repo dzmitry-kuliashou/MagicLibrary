@@ -1,9 +1,10 @@
 using MagicLibrary.Application.ConfigurationOptions;
-using MagicLibrary.Application.EmbeddingGeneration;
+using MagicLibrary.Application.Chat;
 using MagicLibrary.Application.KeywordExtraction;
 using MagicLibrary.Application.PdfProcessing;
 using MagicLibrary.Core.Repositories.Documents;
 using MagicLibrary.Core.Repositories.Vectors;
+using MagicLibrary.Infrastructure.Chat;
 using MagicLibrary.Infrastructure.EmbeddingGeneration;
 using MagicLibrary.Infrastructure.KeywordExtraction;
 using MagicLibrary.Infrastructure.PdfProcessing;
@@ -12,10 +13,14 @@ using MagicLibrary.Infrastructure.Repositories.Vectors;
 using MagicLibrary.Infrastructure.StorageSetup;
 using JasperFx;
 using Marten;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using OllamaSharp;
+using AiEmbeddingGenerator = Microsoft.Extensions.AI.IEmbeddingGenerator<string, Microsoft.Extensions.AI.Embedding<float>>;
+using ApplicationEmbeddingGenerator = MagicLibrary.Application.EmbeddingGeneration.IEmbeddingGenerator;
 
 namespace MagicLibrary.Infrastructure;
 
@@ -61,14 +66,21 @@ public static class DependencyInjection
                 "Embedding:Dimensions must be greater than zero.")
             .ValidateOnStart();
 
-        services.AddHttpClient<OllamaEmbeddingGenerator>((serviceProvider, httpClient) =>
+        services.AddHttpClient("OllamaEmbedding", (serviceProvider, httpClient) =>
         {
             var embeddingOptions = serviceProvider.GetRequiredService<IOptions<EmbeddingOptions>>().Value;
             httpClient.BaseAddress = new Uri(embeddingOptions.BaseUrl);
         });
-        services.AddTransient<IEmbeddingGenerator>(serviceProvider =>
-            serviceProvider.GetRequiredService<OllamaEmbeddingGenerator>());
-        services.AddTransient<IEmbeddingGeneratorFactory, EmbeddingGeneratorFactory>();
+        services.AddTransient<AiEmbeddingGenerator>(serviceProvider =>
+        {
+            var client = new OllamaApiClient(
+                serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("OllamaEmbedding"));
+            client.SelectedModel = serviceProvider
+                .GetRequiredService<IOptions<EmbeddingOptions>>()
+                .Value.Model;
+            return client;
+        });
+        services.AddTransient<ApplicationEmbeddingGenerator, EmbeddingGenerator>();
 
         var chatBaseUrl = configuration["Chat:BaseUrl"];
         if (!Uri.TryCreate(chatBaseUrl, UriKind.Absolute, out var chatBaseAddress) ||
@@ -78,18 +90,26 @@ public static class DependencyInjection
                 "Chat:BaseUrl must be an absolute HTTP or HTTPS URL.");
         }
 
-        if (string.IsNullOrWhiteSpace(configuration["Chat:Model"]))
+        var chatModel = configuration["Chat:Model"];
+        if (string.IsNullOrWhiteSpace(chatModel))
         {
             throw new InvalidOperationException("Chat:Model must be configured.");
         }
 
-        services.AddHttpClient<OllamaKeywordExtractor>((_, httpClient) =>
+        services.AddHttpClient("OllamaChat", (_, httpClient) =>
         {
             httpClient.BaseAddress = chatBaseAddress;
             httpClient.Timeout = TimeSpan.FromSeconds(60);
         });
-        services.AddTransient<IKeywordExtractor>(serviceProvider =>
-            serviceProvider.GetRequiredService<OllamaKeywordExtractor>());
+        services.AddTransient<IChatClient>(serviceProvider =>
+        {
+            var client = new OllamaApiClient(
+                serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("OllamaChat"));
+            client.SelectedModel = chatModel;
+            return client;
+        });
+        services.AddTransient<ILibraryChatAgent, LibraryChatAgent>();
+        services.AddTransient<IKeywordExtractor, KeywordExtractor>();
 
         services.AddMarten(options =>
             {

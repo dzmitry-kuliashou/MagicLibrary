@@ -1,5 +1,6 @@
 using FluentValidation;
 using MagicLibrary.Application.Commands;
+using MagicLibrary.Application.Conversations;
 using MagicLibrary.Application.Indexing;
 using MagicLibrary.Application.Validators;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public static class DependencyInjection
             configuration.RegisterServicesFromAssembly(typeof(CreateBookCommand).Assembly));
         services.AddValidatorsFromAssembly(typeof(CreateBookCommandValidator).Assembly);
         services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<ILibraryConversationOrchestrator, LibraryConversationOrchestrator>();
         services.AddSingleton<IIndexingJobBackgroundProcessor, IndexingJobBackgroundProcessor>();
         services.AddScoped<IndexingWorker>();
         services.AddScoped<IndexingScenarioFactory>();
