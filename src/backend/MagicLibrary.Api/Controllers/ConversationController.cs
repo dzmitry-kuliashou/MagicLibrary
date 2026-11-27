@@ -21,6 +21,14 @@ public sealed class ConversationController(ISender sender) : ControllerBase
         return Ok(response);
     }
 
+    [HttpGet("library")]
+    [ProducesResponseType(typeof(IReadOnlyList<ConversationSummaryResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListLibraryConversations(CancellationToken cancellationToken)
+    {
+        var response = await sender.Send(new ListLibraryConversationsQuery(), cancellationToken);
+        return Ok(response);
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

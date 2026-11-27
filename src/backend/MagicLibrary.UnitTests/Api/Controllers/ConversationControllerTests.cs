@@ -174,4 +174,27 @@ public sealed class ConversationControllerTests
                 CancellationToken.None),
             Times.Once);
     }
+
+    [Fact]
+    public async Task ListLibraryConversations_ReturnsResponseAndSendsQuery()
+    {
+        var expectedResponse = Array.Empty<ConversationSummaryResponse>();
+        var sender = new Mock<ISender>();
+        sender
+            .Setup(service => service.Send(
+                It.IsAny<ListLibraryConversationsQuery>(),
+                CancellationToken.None))
+            .ReturnsAsync(expectedResponse);
+        var controller = new ConversationController(sender.Object);
+
+        var result = await controller.ListLibraryConversations(CancellationToken.None);
+
+        var response = Assert.IsType<OkObjectResult>(result);
+        Assert.Same(expectedResponse, response.Value);
+        sender.Verify(
+            service => service.Send(
+                It.IsAny<ListLibraryConversationsQuery>(),
+                CancellationToken.None),
+            Times.Once);
+    }
 }
