@@ -13,9 +13,10 @@ namespace MagicLibrary.UnitTests.Application.Commands;
 public sealed class CompleteAssistantResponseCommandHandlerTests
 {
     [Fact]
-    public async Task Handle_ValidCommand_PersistsCompletedContentAndReferences()
+    public async Task Handle_ValidCommand_ClearsThinkingAndPersistsCompletedContentAndReferences()
     {
         const string content = "The answer is in chapter 4.";
+        const string generatedContent = "<think>Let me reason through this first.</think>\n" + content;
         const string bookTitle = "Library Guide";
         const int pageNumber = 4;
         var bookId = Guid.NewGuid();
@@ -42,7 +43,7 @@ public sealed class CompleteAssistantResponseCommandHandlerTests
             new FixedTimeProvider(updatedAt));
 
         var result = await handler.Handle(
-            new CompleteAssistantResponseCommand(conversation.Id, content, [reference]),
+            new CompleteAssistantResponseCommand(conversation.Id, generatedContent, [reference]),
             CancellationToken.None);
 
         Assert.False(result.IsError);
