@@ -32,6 +32,7 @@ public sealed class ConversationController(ISender sender) : ControllerBase
             conversation => Ok(new ConversationResponse(
                 conversation.Id,
                 conversation.Name,
+                conversation.BookId,
                 conversation.CreatedAt,
                 conversation.UpdatedAt,
                 conversation.Messages

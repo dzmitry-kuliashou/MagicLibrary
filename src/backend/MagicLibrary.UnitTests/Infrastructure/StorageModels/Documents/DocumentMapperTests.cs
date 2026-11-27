@@ -82,6 +82,7 @@ public sealed class DocumentMapperTests
 
         Assert.Equal(original.Id, restored.Id);
         Assert.Equal(original.Name, restored.Name);
+        Assert.Equal(original.BookId, restored.BookId);
         Assert.Equal(original.CreatedAt, restored.CreatedAt);
         Assert.Equal(original.CreatedAt.Offset, restored.CreatedAt.Offset);
         Assert.Equal(original.UpdatedAt, restored.UpdatedAt);

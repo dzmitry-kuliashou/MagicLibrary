@@ -50,7 +50,7 @@ public sealed class ConversationControllerTests
         var chunkId = Guid.NewGuid();
         var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
         var updatedAt = createdAt.AddMinutes(3);
-        var conversation = Conversation.Create("Research", createdAt, systemMessage);
+        var conversation = Conversation.Create("Research", createdAt, systemMessage, bookId);
         conversation.AddUserMessage(userContent, createdAt.AddMinutes(1));
         conversation.BeginAssistantResponse(createdAt.AddMinutes(2));
         conversation.CompleteAssistantResponse(
@@ -71,6 +71,7 @@ public sealed class ConversationControllerTests
         var responseBody = Assert.IsType<ConversationResponse>(response.Value);
         Assert.Equal(conversation.Id, responseBody.Id);
         Assert.Equal(conversation.Name, responseBody.Name);
+        Assert.Equal(bookId, responseBody.BookId);
         Assert.Equal(createdAt, responseBody.CreatedAt);
         Assert.Equal(updatedAt, responseBody.UpdatedAt);
         Assert.False(responseBody.IsLastMessagePending);

@@ -15,12 +15,27 @@ public sealed class ConversationTests
 
         Assert.NotEqual(Guid.Empty, conversation.Id);
         Assert.Equal("Research", conversation.Name);
+        Assert.Null(conversation.BookId);
         Assert.Equal(createdAt, conversation.CreatedAt);
         Assert.Equal(createdAt, conversation.UpdatedAt);
         var systemMessage = Assert.Single(conversation.Messages);
         Assert.Equal(MessageRole.System, systemMessage.Role);
         Assert.Equal("Answer with sources.", systemMessage.Content);
         Assert.Empty(systemMessage.SourceReferences);
+    }
+
+    [Fact]
+    public void Create_BookId_SetsConversationBookScope()
+    {
+        var bookId = Guid.NewGuid();
+
+        var conversation = Conversation.Create(
+            "Research",
+            new DateTimeOffset(2026, 4, 5, 6, 7, 8, TimeSpan.Zero),
+            "Answer with sources.",
+            bookId);
+
+        Assert.Equal(bookId, conversation.BookId);
     }
 
     [Theory]
@@ -65,12 +80,14 @@ public sealed class ConversationTests
         var conversation = Conversation.Reconstitute(
             id,
             "Research",
+            bookId,
             createdAt,
             updatedAt,
             messages);
 
         Assert.Equal(id, conversation.Id);
         Assert.Equal("Research", conversation.Name);
+        Assert.Equal(bookId, conversation.BookId);
         Assert.Equal(createdAt, conversation.CreatedAt);
         Assert.Equal(createdAt.Offset, conversation.CreatedAt.Offset);
         Assert.Equal(updatedAt, conversation.UpdatedAt);

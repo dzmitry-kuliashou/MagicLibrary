@@ -8,7 +8,7 @@ using MediatR;
 
 namespace MagicLibrary.Application.Commands;
 
-public sealed record CreateConversationCommand(string Name) : IRequest<ErrorOr<Conversation>>;
+public sealed record CreateConversationCommand(string Name, Guid? BookId = null) : IRequest<ErrorOr<Conversation>>;
 
 public sealed class CreateConversationCommandHandler(
     IValidator<CreateConversationCommand> validator,
@@ -29,7 +29,8 @@ public sealed class CreateConversationCommandHandler(
         var conversation = Conversation.Create(
             request.Name,
             timeProvider.GetUtcNow(),
-            LibraryChatInstructions.SystemMessage);
+            LibraryChatInstructions.SystemMessage,
+            request.BookId);
 
         return await conversationWriteRepository.CreateAsync(conversation, cancellationToken);
     }

@@ -42,10 +42,11 @@ public sealed class LibraryConversationOrchestratorTests
         const string systemMessage = "System instructions";
         const string answer = "The search chapter is chapter 4.";
         var conversationName = $"{question[..47]}...";
+        var requestedBookId = Guid.NewGuid();
         var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
         var updatedAt = createdAt.AddMinutes(1);
         var completedAt = createdAt.AddMinutes(2);
-        var conversation = Conversation.Create(conversationName, createdAt, systemMessage);
+        var conversation = Conversation.Create(conversationName, createdAt, systemMessage, requestedBookId);
         var fixture = CreateFixture();
         fixture.ChatAgent.StreamFactory = (_, _) => GetDeltas(answer);
         fixture.Sender
@@ -85,7 +86,7 @@ public sealed class LibraryConversationOrchestratorTests
             });
 
         var result = await fixture.Orchestrator.StreamAsync(
-            new LibraryChatCommand(null, question),
+            new LibraryChatCommand(null, question, requestedBookId),
             CancellationToken.None);
         Assert.False(result.IsError);
         var events = new List<ChatStreamEvent>();
@@ -95,6 +96,7 @@ public sealed class LibraryConversationOrchestratorTests
         }
 
         Assert.Equal(conversationName, conversation.Name);
+        Assert.Equal(requestedBookId, conversation.BookId);
         Assert.Equal(50, new System.Globalization.StringInfo(conversation.Name).LengthInTextElements);
         Assert.Equal(question, conversation.Messages[1].Content);
         Assert.Equal(MessageStatus.Completed, conversation.Messages[^1].Status);
@@ -115,7 +117,8 @@ public sealed class LibraryConversationOrchestratorTests
         Assert.IsType<ChatStreamEvent.Completed>(events[^1]);
         fixture.Sender.Verify(
             service => service.Send(
-                It.Is<CreateConversationCommand>(command => command.Name == conversationName),
+                It.Is<CreateConversationCommand>(command =>
+                    command.Name == conversationName && command.BookId == requestedBookId),
                 CancellationToken.None),
             Times.Once);
         fixture.Sender.Verify(

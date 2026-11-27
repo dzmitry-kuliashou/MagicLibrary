@@ -12,6 +12,7 @@ internal static class ConversationDocumentMapper
         {
             Id = conversation.Id,
             Name = conversation.Name,
+            BookId = conversation.BookId,
             CreatedAt = conversation.CreatedAt,
             UpdatedAt = conversation.UpdatedAt,
             Messages = conversation.Messages
@@ -52,6 +53,7 @@ internal static class ConversationDocumentMapper
         return Conversation.Reconstitute(
             document.Id,
             document.Name,
+            document.BookId,
             document.CreatedAt,
             document.UpdatedAt,
             messages);

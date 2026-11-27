@@ -34,7 +34,7 @@ public sealed class LibraryConversationOrchestrator(
         if (command.ConversationId is null)
         {
             var createResult = await sender.Send(
-                new CreateConversationCommand(CreateConversationName(command.Message)),
+                new CreateConversationCommand(CreateConversationName(command.Message), command.BookId),
                 cancellationToken);
             if (createResult.IsError)
             {

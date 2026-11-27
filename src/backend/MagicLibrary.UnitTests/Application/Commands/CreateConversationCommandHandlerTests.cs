@@ -17,6 +17,7 @@ public sealed class CreateConversationCommandHandlerTests
     public async Task Handle_ValidCommand_CreatesConversationWithSystemMessage()
     {
         const string name = "Research";
+        var bookId = Guid.NewGuid();
         var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
         var writeRepository = new Mock<IConversationWriteRepository>();
         writeRepository
@@ -30,11 +31,12 @@ public sealed class CreateConversationCommandHandlerTests
             writeRepository.Object);
 
         var result = await handler.Handle(
-            new CreateConversationCommand(name),
+            new CreateConversationCommand(name, bookId),
             CancellationToken.None);
 
         Assert.False(result.IsError);
         Assert.Equal(name, result.Value.Name);
+        Assert.Equal(bookId, result.Value.BookId);
         Assert.Equal(createdAt, result.Value.CreatedAt);
         var message = Assert.Single(result.Value.Messages);
         Assert.Equal(MessageRole.System, message.Role);
