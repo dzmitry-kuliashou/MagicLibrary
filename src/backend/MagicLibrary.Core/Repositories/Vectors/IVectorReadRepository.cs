@@ -5,6 +5,6 @@ public interface IVectorReadRepository<TRecord>
     Task<IReadOnlyList<TRecord>> SearchAsync(
         IReadOnlyList<float> queryEmbedding,
         int topK,
-        Guid? scopeId,
+        IReadOnlyCollection<Guid>? bookIds,
         CancellationToken cancellationToken);
 }

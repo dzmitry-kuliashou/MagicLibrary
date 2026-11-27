@@ -263,16 +263,25 @@ public sealed class LibraryConversationOrchestratorTests
     }
 
     [Fact]
-    public async Task StreamAsync_CompletedGenerationPersistsAnswerBeforeCompletionEvent()
+    public async Task StreamAsync_CompletedGeneration_PersistsAgentSourceReferencesWithAnswer()
     {
         const string question = "Question";
         const string firstDelta = "The assembled";
         const string secondDelta = " answer.";
         const string expectedAnswer = firstDelta + secondDelta;
+        var requestedBookId = Guid.NewGuid();
+        var sourceReference = SourceReference.Create(
+            requestedBookId,
+            "The Library Book",
+            12,
+            Guid.NewGuid());
         var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
         var conversation = Conversation.Create(question, createdAt, "System instructions");
         var fixture = CreateFixture();
-        fixture.ChatAgent.StreamFactory = (_, _) => GetDeltas(firstDelta, secondDelta);
+        fixture.ChatAgent.ToolStreamFactory = (_, _, _) => GetAgentUpdates(
+            new LibraryChatAgentUpdate(firstDelta),
+            new LibraryChatAgentUpdate(secondDelta),
+            new LibraryChatAgentUpdate(null, [sourceReference]));
         fixture.Sender
             .Setup(service => service.Send(
                 It.IsAny<CreateConversationCommand>(),
@@ -297,6 +306,7 @@ public sealed class LibraryConversationOrchestratorTests
                 return Task.FromResult<ErrorOr<Conversation>>(conversation);
             });
         string? persistedAnswer = null;
+        IReadOnlyList<SourceReference>? persistedSourceReferences = null;
         fixture.Sender
             .Setup(service => service.Send(
                 It.IsAny<CompleteAssistantResponseCommand>(),
@@ -304,6 +314,7 @@ public sealed class LibraryConversationOrchestratorTests
             .Returns((CompleteAssistantResponseCommand command, CancellationToken _) =>
             {
                 persistedAnswer = command.Content;
+                persistedSourceReferences = command.SourceReferences.ToArray();
                 conversation.CompleteAssistantResponse(
                     command.Content,
                     command.SourceReferences,
@@ -312,7 +323,7 @@ public sealed class LibraryConversationOrchestratorTests
             });
 
         var result = await fixture.Orchestrator.StreamAsync(
-            new LibraryChatCommand(null, question),
+            new LibraryChatCommand(null, question, requestedBookId),
             CancellationToken.None);
         Assert.False(result.IsError);
         var events = new List<ChatStreamEvent>();
@@ -323,6 +334,8 @@ public sealed class LibraryConversationOrchestratorTests
                 Assert.Equal(expectedAnswer, persistedAnswer);
                 Assert.Equal(expectedAnswer, conversation.Messages[^1].Content);
                 Assert.Equal(MessageStatus.Completed, conversation.Messages[^1].Status);
+                Assert.Equal([sourceReference], persistedSourceReferences);
+                Assert.Equal([sourceReference], conversation.Messages[^1].SourceReferences);
             }
 
             events.Add(streamEvent);
@@ -334,6 +347,7 @@ public sealed class LibraryConversationOrchestratorTests
             streamEvent => Assert.Equal(new ChatStreamEvent.Text(firstDelta), streamEvent),
             streamEvent => Assert.Equal(new ChatStreamEvent.Text(secondDelta), streamEvent),
             streamEvent => Assert.IsType<ChatStreamEvent.Completed>(streamEvent));
+        Assert.Equal(requestedBookId, fixture.ChatAgent.RequestedBookId);
     }
 
     [Fact]
@@ -513,23 +527,43 @@ public sealed class LibraryConversationOrchestratorTests
             set;
         } = (_, _) => EmptyDeltasAsync();
 
+        public Func<
+            IReadOnlyList<Message>,
+            Guid?,
+            CancellationToken,
+            IAsyncEnumerable<LibraryChatAgentUpdate>>? ToolStreamFactory { get; set; }
+
         public IReadOnlyList<Message>? Messages { get; private set; }
+
+        public Guid? RequestedBookId { get; private set; }
 
         public CancellationToken CancellationToken { get; private set; }
 
-        public IAsyncEnumerable<string> StreamAsync(
+        public IAsyncEnumerable<LibraryChatAgentUpdate> StreamAsync(
             IReadOnlyList<Message> messages,
+            Guid? requestedBookId,
             CancellationToken cancellationToken)
         {
             Messages = messages;
+            RequestedBookId = requestedBookId;
             CancellationToken = cancellationToken;
-            return StreamFactory(messages, cancellationToken);
+            return ToolStreamFactory?.Invoke(messages, requestedBookId, cancellationToken) ??
+                   WrapDeltasAsync(StreamFactory(messages, cancellationToken));
         }
 
         private static async IAsyncEnumerable<string> EmptyDeltasAsync()
         {
             await Task.Yield();
             yield break;
+        }
+
+        private static async IAsyncEnumerable<LibraryChatAgentUpdate> WrapDeltasAsync(
+            IAsyncEnumerable<string> deltas)
+        {
+            await foreach (var delta in deltas)
+            {
+                yield return new LibraryChatAgentUpdate(delta);
+            }
         }
     }
 
@@ -538,6 +572,16 @@ public sealed class LibraryConversationOrchestratorTests
         foreach (var delta in deltas)
         {
             yield return delta;
+            await Task.Yield();
+        }
+    }
+
+    private static async IAsyncEnumerable<LibraryChatAgentUpdate> GetAgentUpdates(
+        params LibraryChatAgentUpdate[] updates)
+    {
+        foreach (var update in updates)
+        {
+            yield return update;
             await Task.Yield();
         }
     }

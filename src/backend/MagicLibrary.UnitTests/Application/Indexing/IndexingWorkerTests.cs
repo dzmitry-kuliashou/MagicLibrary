@@ -181,11 +181,14 @@ public sealed class IndexingWorkerTests
     }
 
     [Fact]
-    public async Task ProcessAsync_BookSpecificScenarioFails_FailsJobWithScenarioMessage()
+    public async Task ProcessAsync_ScenarioReturnsError_FailsJobWithScenarioMessage()
     {
         var indexingJob = IndexingJob.Create(Guid.NewGuid());
         var timestamp = new DateTimeOffset(2026, 11, 24, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FixedTimeProvider(timestamp);
+        var scenarioError = Error.Failure(
+            "IndexingJob.ScenarioFailed",
+            "The scenario failed.");
         var indexingJobReadRepository = new Mock<IIndexingJobReadRepository>();
         indexingJobReadRepository
             .Setup(repository => repository.GetByIdAsync(
@@ -195,6 +198,13 @@ public sealed class IndexingWorkerTests
         indexingJobReadRepository
             .Setup(repository => repository.AnyRunningAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
+        var scenario = new Mock<IIndexingScenario>();
+        scenario
+            .Setup(candidate => candidate.CanProcess(indexingJob))
+            .Returns(true);
+        scenario
+            .Setup(candidate => candidate.ExecuteAsync(indexingJob, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(scenarioError);
         var sender = new Mock<ISender>();
         sender
             .Setup(service => service.Send(
@@ -216,20 +226,20 @@ public sealed class IndexingWorkerTests
             });
         var worker = new IndexingWorker(
             indexingJobReadRepository.Object,
-            new IndexingScenarioFactory([new BookIndexingScenario()]),
+            new IndexingScenarioFactory([scenario.Object]),
             timeProvider,
             sender.Object);
 
         await worker.ProcessAsync(indexingJob.Id, CancellationToken.None);
 
         Assert.Equal(IndexingJobStatus.Failed, indexingJob.Status);
-        Assert.Equal("Book-specific indexing is not implemented.", indexingJob.FailureMessage);
+        Assert.Equal(scenarioError.Description, indexingJob.FailureMessage);
         Assert.Equal(timestamp, indexingJob.CompletedAt);
         sender.Verify(
             service => service.Send(
                 It.Is<FailIndexingJobCommand>(command =>
                     command.IndexingJobId == indexingJob.Id
-                    && command.FailureMessage == "Book-specific indexing is not implemented."),
+                    && command.FailureMessage == scenarioError.Description),
                 CancellationToken.None),
             Times.Once);
         sender.Verify(

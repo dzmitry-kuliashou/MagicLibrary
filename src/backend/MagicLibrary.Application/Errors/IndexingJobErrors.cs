@@ -27,6 +27,31 @@ public static class IndexingJobErrors
             "IndexingJob.FileErrorUpdateNotAllowed",
             $"A file error can only be added while an indexing job is Running; current status is {currentStatus}.");
 
+    public static Error BookIdRequired =>
+        Error.Validation(
+            "IndexingJob.BookIdRequired",
+            "A book ID is required for book indexing.");
+
+    public static Error BookStorageRootDirectoryUnavailable =>
+        Error.Failure(
+            "BookStorage.RootDirectoryUnavailable",
+            "The configured book storage directory does not exist.");
+
+    public static Error BookPdfNotFound(string fileName) =>
+        Error.NotFound(
+            "IndexingJob.BookPdfNotFound",
+            $"The PDF file '{fileName}' does not exist in the configured book storage directory.");
+
+    public static Error BookPdfExtractionFailed(string fileName, Exception exception) =>
+        Error.Failure(
+            "IndexingJob.BookPdfExtractionFailed",
+            $"Failed to extract '{fileName}': {exception.GetType().Name}: {exception.Message}");
+
+    public static Error BookIndexingFailed(string fileName, string message) =>
+        Error.Failure(
+            "IndexingJob.BookIndexingFailed",
+            $"Indexing book '{fileName}' failed: {message}");
+
     public static Error InvalidStartTimestamp =>
         Error.Validation(
             "IndexingJob.InvalidStartTimestamp",

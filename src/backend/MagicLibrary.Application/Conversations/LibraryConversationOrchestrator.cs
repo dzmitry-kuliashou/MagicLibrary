@@ -74,11 +74,16 @@ public sealed class LibraryConversationOrchestrator(
 
         var messages = beginResponseResult.Value.Messages;
         var history = messages.Take(messages.Count - 1).ToArray();
+        var sourceReferences = new List<SourceReference>();
         return ErrorOrFactory.From(
             StreamAsync(
                 conversationId,
-                StreamDeltasAsync(history, cancellationToken),
-                (content, token) => CompleteAssistantResponseAsync(conversationId, content, token),
+                StreamDeltasAsync(history, command.BookId, sourceReferences, cancellationToken),
+                (content, token) => CompleteAssistantResponseAsync(
+                    conversationId,
+                    content,
+                    sourceReferences,
+                    token),
                 (_, token) => FailAssistantResponseAsync(conversationId, token),
                 token => InterruptAssistantResponseAsync(conversationId, token),
                 cancellationToken));
@@ -87,12 +92,13 @@ public sealed class LibraryConversationOrchestrator(
     private Task<ErrorOr<Conversation>> CompleteAssistantResponseAsync(
         Guid conversationId,
         string content,
+        IReadOnlyCollection<SourceReference> sourceReferences,
         CancellationToken cancellationToken)
         => sender.Send(
             new CompleteAssistantResponseCommand(
                 conversationId,
                 content,
-                []),
+                sourceReferences),
             cancellationToken);
 
     private Task<ErrorOr<Conversation>> FailAssistantResponseAsync(
@@ -111,12 +117,26 @@ public sealed class LibraryConversationOrchestrator(
 
     private async IAsyncEnumerable<string> StreamDeltasAsync(
         IReadOnlyList<Message> history,
+        Guid? requestedBookId,
+        ICollection<SourceReference> sourceReferences,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var delta in libraryChatAgent
-                           .StreamAsync(history, cancellationToken))
+        await foreach (var update in libraryChatAgent
+                           .StreamAsync(history, requestedBookId, cancellationToken))
         {
-            yield return delta;
+            if (update.SourceReferences is not null)
+            {
+                sourceReferences.Clear();
+                foreach (var sourceReference in update.SourceReferences)
+                {
+                    sourceReferences.Add(sourceReference);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(update.Text))
+            {
+                yield return update.Text;
+            }
         }
     }
 

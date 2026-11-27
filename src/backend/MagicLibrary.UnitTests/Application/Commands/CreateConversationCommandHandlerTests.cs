@@ -1,4 +1,5 @@
 using ErrorOr;
+using MagicLibrary.Application.Chat;
 using MagicLibrary.Application.Commands;
 using MagicLibrary.Application.Errors;
 using MagicLibrary.Application.Validators;
@@ -16,8 +17,6 @@ public sealed class CreateConversationCommandHandlerTests
     public async Task Handle_ValidCommand_CreatesConversationWithSystemMessage()
     {
         const string name = "Research";
-        const string systemMessage =
-            "You are a library worker. Answer questions about books in the library and their contents. If a question is unrelated to books or their contents, politely decline to answer.";
         var createdAt = new DateTimeOffset(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
         var writeRepository = new Mock<IConversationWriteRepository>();
         writeRepository
@@ -39,7 +38,11 @@ public sealed class CreateConversationCommandHandlerTests
         Assert.Equal(createdAt, result.Value.CreatedAt);
         var message = Assert.Single(result.Value.Messages);
         Assert.Equal(MessageRole.System, message.Role);
-        Assert.Equal(systemMessage, message.Content);
+        Assert.Equal(LibraryChatInstructions.SystemMessage, message.Content);
+        Assert.Contains("retrieved document chunks", message.Content);
+        Assert.Contains("search_books tool's limit and phrase-length rules", message.Content);
+        Assert.Contains("does not provide enough information", message.Content);
+        Assert.Contains("politely decline", message.Content);
         writeRepository.Verify(
             repository => repository.CreateAsync(
                 It.IsAny<Conversation>(),

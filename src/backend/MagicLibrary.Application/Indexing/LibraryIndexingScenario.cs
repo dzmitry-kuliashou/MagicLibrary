@@ -2,6 +2,7 @@ using ErrorOr;
 using MagicLibrary.Application.Commands;
 using MagicLibrary.Application.ConfigurationOptions;
 using MagicLibrary.Application.EmbeddingGeneration;
+using MagicLibrary.Application.Errors;
 using MagicLibrary.Application.KeywordExtraction;
 using MagicLibrary.Application.PdfProcessing;
 using MagicLibrary.Core.Aggregates;
@@ -31,9 +32,7 @@ public sealed class LibraryIndexingScenario(
         var rootDirectory = storageOptions.Value.RootDirectory;
         if (string.IsNullOrWhiteSpace(rootDirectory) || !Directory.Exists(rootDirectory))
         {
-            return Error.Failure(
-                "BookStorage.RootDirectoryUnavailable",
-                "The configured book storage directory does not exist.");
+            return IndexingJobErrors.BookStorageRootDirectoryUnavailable;
         }
 
         var filePaths = Directory

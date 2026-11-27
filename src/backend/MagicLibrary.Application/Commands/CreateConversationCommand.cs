@@ -1,5 +1,6 @@
 using ErrorOr;
 using FluentValidation;
+using MagicLibrary.Application.Chat;
 using MagicLibrary.Application.Validation;
 using MagicLibrary.Core.Aggregates;
 using MagicLibrary.Core.Repositories.Documents;
@@ -15,9 +16,6 @@ public sealed class CreateConversationCommandHandler(
     IConversationWriteRepository conversationWriteRepository)
     : IRequestHandler<CreateConversationCommand, ErrorOr<Conversation>>
 {
-    private const string SystemMessage =
-        "You are a library worker. Answer questions about books in the library and their contents. If a question is unrelated to books or their contents, politely decline to answer.";
-
     public async Task<ErrorOr<Conversation>> Handle(
         CreateConversationCommand request,
         CancellationToken cancellationToken)
@@ -31,7 +29,7 @@ public sealed class CreateConversationCommandHandler(
         var conversation = Conversation.Create(
             request.Name,
             timeProvider.GetUtcNow(),
-            SystemMessage);
+            LibraryChatInstructions.SystemMessage);
 
         return await conversationWriteRepository.CreateAsync(conversation, cancellationToken);
     }

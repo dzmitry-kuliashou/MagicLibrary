@@ -146,6 +146,13 @@ public sealed class Book : AggregateRoot
         IndexedAt = null;
     }
 
+    public void ResetIndexing()
+    {
+        IndexingStatus = BookIndexingStatus.Pending;
+        _keywords.Clear();
+        IndexedAt = null;
+    }
+
     public void MarkIndexed(DateTimeOffset indexedAt)
     {
         Guard.Against.Default(indexedAt);

@@ -106,6 +106,43 @@ public sealed class BookTests
     }
 
     [Theory]
+    [InlineData(BookIndexingStatus.Pending)]
+    [InlineData(BookIndexingStatus.InProgress)]
+    [InlineData(BookIndexingStatus.Indexed)]
+    [InlineData(BookIndexingStatus.Failed)]
+    public void ResetIndexing_AnyPriorStatus_ClearsIndexingState(BookIndexingStatus status)
+    {
+        var book = CreateBook();
+        var indexedAt = new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero);
+
+        switch (status)
+        {
+            case BookIndexingStatus.Pending:
+                break;
+            case BookIndexingStatus.InProgress:
+                book.MarkIndexingStarted();
+                break;
+            case BookIndexingStatus.Indexed:
+                book.MarkIndexingStarted();
+                book.MarkIndexed(indexedAt);
+                break;
+            case BookIndexingStatus.Failed:
+                book.MarkIndexingFailed();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status), status, null);
+        }
+
+        book.AddKeywords(["semantic", "search"]);
+
+        book.ResetIndexing();
+
+        Assert.Equal(BookIndexingStatus.Pending, book.IndexingStatus);
+        Assert.Empty(book.Keywords);
+        Assert.Null(book.IndexedAt);
+    }
+
+    [Theory]
     [InlineData(BookIndexingStatus.InProgress)]
     [InlineData(BookIndexingStatus.Indexed)]
     [InlineData(BookIndexingStatus.Failed)]

@@ -15,21 +15,26 @@ namespace MagicLibrary.UnitTests.Api.Controllers;
 
 public sealed class LibraryChatControllerTests
 {
-    [Fact]
-    public async Task Post_ValidRequest_StreamsEventsAndConversationId()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("5b88bb15-d37f-4fa2-9546-7ab262d03f0e")]
+    public async Task Post_ValidRequest_StreamsEventsAndConversationId(string? bookIdText)
     {
         const string message = "Question";
         var conversationId = Guid.NewGuid();
+        Guid? bookId = bookIdText is null ? null : Guid.Parse(bookIdText);
         using var cancellationSource = new CancellationTokenSource();
         Controller.HttpContext.RequestAborted = cancellationSource.Token;
         Orchestrator
             .Setup(service => service.StreamAsync(
                 It.Is<LibraryChatCommand>(command =>
-                    command.ConversationId == conversationId && command.Message == message),
+                    command.ConversationId == conversationId &&
+                    command.Message == message &&
+                    command.BookId == bookId),
                 cancellationSource.Token))
             .ReturnsAsync(ErrorOrFactory.From(GetEvents()));
 
-        var result = await Controller.Post(new LibraryChatRequest(conversationId, message));
+        var result = await Controller.Post(new LibraryChatRequest(conversationId, message, bookId));
 
         Assert.IsType<EmptyResult>(result);
         Assert.Equal("text/event-stream", Controller.Response.ContentType);
@@ -41,7 +46,9 @@ public sealed class LibraryChatControllerTests
         Orchestrator.Verify(
             service => service.StreamAsync(
                 It.Is<LibraryChatCommand>(command =>
-                    command.ConversationId == conversationId && command.Message == message),
+                    command.ConversationId == conversationId &&
+                    command.Message == message &&
+                    command.BookId == bookId),
                 cancellationSource.Token),
             Times.Once);
 

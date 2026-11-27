@@ -18,7 +18,7 @@ public sealed class LibraryChatController(
     {
         var cancellationToken = HttpContext.RequestAborted;
         var streamResult = await conversationOrchestrator.StreamAsync(
-            new LibraryChatCommand(request.ConversationId, request.Message),
+            new LibraryChatCommand(request.ConversationId, request.Message, request.BookId),
             cancellationToken);
         if (streamResult.IsError)
         {

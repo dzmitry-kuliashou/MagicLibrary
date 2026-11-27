@@ -59,7 +59,7 @@ public sealed class DocumentChunkRepositoryIntegrationTests : IAsyncLifetime
         var results = await _readRepository.SearchAsync(
             [0f, 1f, 0f],
             10,
-            bookId,
+            [bookId],
             CancellationToken.None);
         var expectedContents = replacementChunks
             .Select(chunk => chunk.Content)
@@ -98,6 +98,33 @@ public sealed class DocumentChunkRepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SearchAsync_EmptyBookIds_ReturnsLibraryWideNearestChunks()
+    {
+        var firstBookId = Guid.NewGuid();
+        var secondBookId = Guid.NewGuid();
+        var chunks = new[]
+        {
+            CreateChunk(firstBookId, 0, [0f, 1f, 0f], "far chunk"),
+            CreateChunk(secondBookId, 0, [0.8f, 0.6f, 0f], "second nearest chunk"),
+            CreateChunk(firstBookId, 1, [-1f, 0f, 0f], "farthest chunk"),
+            CreateChunk(secondBookId, 1, [1f, 0f, 0f], "nearest chunk")
+        };
+        await _writeRepository.ReplaceAsync(firstBookId, [chunks[0], chunks[2]], CancellationToken.None);
+        await _writeRepository.ReplaceAsync(secondBookId, [chunks[1], chunks[3]], CancellationToken.None);
+
+        var results = await _readRepository.SearchAsync(
+            [1f, 0f, 0f],
+            2,
+            [],
+            CancellationToken.None);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal(
+            [chunks[3].Id, chunks[1].Id],
+            results.Select(chunk => chunk.Id));
+    }
+
+    [Fact]
     public async Task SearchAsync_BookScope_ExcludesCloserChunksFromOtherBooks()
     {
         var bookId = Guid.NewGuid();
@@ -114,11 +141,43 @@ public sealed class DocumentChunkRepositoryIntegrationTests : IAsyncLifetime
         var results = await _readRepository.SearchAsync(
             [1f, 0f, 0f],
             10,
-            bookId,
+            [bookId],
             CancellationToken.None);
 
         Assert.Equal(scopedChunks.Select(chunk => chunk.Id), results.Select(chunk => chunk.Id));
         Assert.DoesNotContain(results, chunk => chunk.Id == closerChunk.Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_MultipleBookIds_ReturnsOnlyChunksFromThoseBooks()
+    {
+        var firstBookId = Guid.NewGuid();
+        var secondBookId = Guid.NewGuid();
+        var unselectedBookId = Guid.NewGuid();
+        var selectedChunks = new[]
+        {
+            CreateChunk(firstBookId, 0, [0.8f, 0.6f, 0f], "first selected chunk"),
+            CreateChunk(secondBookId, 0, [0f, 1f, 0f], "second selected chunk")
+        };
+        var closerUnselectedChunk = CreateChunk(
+            unselectedBookId,
+            0,
+            [1f, 0f, 0f],
+            "closer unselected chunk");
+        await _writeRepository.ReplaceAsync(firstBookId, [selectedChunks[0]], CancellationToken.None);
+        await _writeRepository.ReplaceAsync(secondBookId, [selectedChunks[1]], CancellationToken.None);
+        await _writeRepository.ReplaceAsync(unselectedBookId, [closerUnselectedChunk], CancellationToken.None);
+
+        var results = await _readRepository.SearchAsync(
+            [1f, 0f, 0f],
+            10,
+            [firstBookId, secondBookId],
+            CancellationToken.None);
+
+        Assert.Equal(
+            selectedChunks.Select(chunk => chunk.Id),
+            results.Select(chunk => chunk.Id));
+        Assert.DoesNotContain(results, chunk => chunk.Id == closerUnselectedChunk.Id);
     }
 
     [Fact]
@@ -139,7 +198,7 @@ public sealed class DocumentChunkRepositoryIntegrationTests : IAsyncLifetime
         var results = await _readRepository.SearchAsync(
             [1f, 0f, 0f],
             10,
-            bookId,
+            [bookId],
             CancellationToken.None);
 
         Assert.Equal([existingChunk.Id], results.Select(chunk => chunk.Id));

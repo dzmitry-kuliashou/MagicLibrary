@@ -1,4 +1,5 @@
 using FluentValidation;
+using MagicLibrary.Application.Chat;
 using MagicLibrary.Application.Commands;
 using MagicLibrary.Application.Conversations;
 using MagicLibrary.Application.Indexing;
@@ -17,6 +18,7 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(CreateBookCommandValidator).Assembly);
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ILibraryConversationOrchestrator, LibraryConversationOrchestrator>();
+        services.AddScoped<ILibraryChatTools, LibraryChatTools>();
         services.AddSingleton<IIndexingJobBackgroundProcessor, IndexingJobBackgroundProcessor>();
         services.AddScoped<IndexingWorker>();
         services.AddScoped<IndexingScenarioFactory>();

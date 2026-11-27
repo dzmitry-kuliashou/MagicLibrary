@@ -16,10 +16,10 @@ internal sealed class DocumentChunkReadRepository(NpgsqlDataSource dataSource) :
         LIMIT $2
         """;
 
-    private const string SearchByBookSql = """
+    private const string SearchByBooksSql = """
         SELECT id, book_id, chunk_index, page_number, content, embedding, embedding_provider, embedding_model
         FROM document_chunks
-        WHERE book_id = $1
+        WHERE book_id = ANY($1)
         ORDER BY embedding <=> $2
         LIMIT $3
         """;
@@ -27,7 +27,7 @@ internal sealed class DocumentChunkReadRepository(NpgsqlDataSource dataSource) :
     public async Task<IReadOnlyList<DocumentChunk>> SearchAsync(
         IReadOnlyList<float> queryEmbedding,
         int topK,
-        Guid? scopeId,
+        IReadOnlyCollection<Guid>? bookIds,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(queryEmbedding);
@@ -37,15 +37,16 @@ internal sealed class DocumentChunkReadRepository(NpgsqlDataSource dataSource) :
         }
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(topK);
+        var hasBookScope = bookIds is { Count: > 0 };
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            scopeId.HasValue ? SearchByBookSql : SearchSql,
+            hasBookScope ? SearchByBooksSql : SearchSql,
             connection);
 
-        if (scopeId is { } bookId)
+        if (bookIds is { Count: > 0 } scopedBookIds)
         {
-            command.Parameters.AddWithValue(bookId);
+            command.Parameters.AddWithValue(scopedBookIds.ToArray());
         }
 
         command.Parameters.AddWithValue(new Vector(queryEmbedding.ToArray()));

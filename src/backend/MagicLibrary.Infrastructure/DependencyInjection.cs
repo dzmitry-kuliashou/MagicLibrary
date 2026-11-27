@@ -52,6 +52,12 @@ public static class DependencyInjection
                 "KeywordExtraction:MaxGeneratedTokens must be greater than zero.")
             .ValidateOnStart();
 
+        services.AddOptions<VectorSearchOptions>()
+            .Bind(configuration.GetSection(VectorSearchOptions.SectionName))
+            .Validate(options => options.TopK > 0,
+                "VectorSearch:TopK must be greater than zero.")
+            .ValidateOnStart();
+
         services.AddOptions<EmbeddingOptions>()
             .Bind(configuration.GetSection(EmbeddingOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.Provider),
