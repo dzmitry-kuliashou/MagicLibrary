@@ -2,10 +2,10 @@ using MagicLibrary.Core.ValueObjects;
 
 namespace MagicLibrary.Application.Chat;
 
-public interface ILibraryChatTools
+public interface ILibraryChatSearch
 {
     Task<IReadOnlyList<Guid>> SearchBooksAsync(
-        IReadOnlyList<string> terms,
+        string latestUserMessage,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<RetrievedLibraryChunk>> SearchChunksAsync(

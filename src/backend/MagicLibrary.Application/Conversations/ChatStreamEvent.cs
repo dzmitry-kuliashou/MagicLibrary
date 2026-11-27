@@ -1,4 +1,4 @@
-namespace MagicLibrary.Application.Chat;
+namespace MagicLibrary.Application.Conversations;
 
 public abstract record ChatStreamEvent
 {

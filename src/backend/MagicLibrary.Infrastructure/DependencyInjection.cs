@@ -72,6 +72,16 @@ public static class DependencyInjection
                 "Embedding:Dimensions must be greater than zero.")
             .ValidateOnStart();
 
+        services.AddOptions<LibraryChatOptions>()
+            .Bind(configuration.GetSection(LibraryChatOptions.SectionName))
+            .Validate(options => IsValidStageOptions(options.ContextSelection),
+                "LibraryChat:ContextSelection requires positive MaxOutputTokens and a valid ReasoningEffort.")
+            .Validate(options => IsValidStageOptions(options.SearchTermExtraction),
+                "LibraryChat:SearchTermExtraction requires positive MaxOutputTokens and a valid ReasoningEffort.")
+            .Validate(options => IsValidStageOptions(options.AnswerGeneration),
+                "LibraryChat:AnswerGeneration requires positive MaxOutputTokens and a valid ReasoningEffort.")
+            .ValidateOnStart();
+
         services.AddHttpClient("OllamaEmbedding", (serviceProvider, httpClient) =>
         {
             var embeddingOptions = serviceProvider.GetRequiredService<IOptions<EmbeddingOptions>>().Value;
@@ -108,14 +118,51 @@ public static class DependencyInjection
             httpClient.Timeout = TimeSpan.FromSeconds(60);
         });
         services.AddTransient<IChatClient>(serviceProvider =>
+            CreateChatClient(serviceProvider, chatModel));
+        services.AddTransient<IConversationContextSelector>(serviceProvider =>
         {
-            var client = new OllamaApiClient(
-                serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("OllamaChat"));
-            client.SelectedModel = chatModel;
-            return client;
+            var options = serviceProvider.GetRequiredService<IOptions<LibraryChatOptions>>().Value;
+            return new ConversationContextSelector(
+                CreateChatClient(
+                    serviceProvider,
+                    chatModel,
+                    options.ContextSelection,
+                    ConversationContextSelector.ResponseFormat));
         });
-        services.AddTransient<ILibraryChatAgent, LibraryChatAgent>();
-        services.AddTransient<IKeywordExtractor, KeywordExtractor>();
+        services.AddTransient<IBookSearchTermExtractor>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<LibraryChatOptions>>().Value;
+            return new BookSearchTermExtractor(
+                CreateChatClient(
+                    serviceProvider,
+                    chatModel,
+                    options.SearchTermExtraction,
+                    BookSearchTermExtractor.ResponseFormat),
+                serviceProvider.GetRequiredService<IOptions<KeywordExtractionOptions>>());
+        });
+        services.AddScoped<ILibraryChatSearch, LibraryChatSearch>();
+        services.AddTransient<ILibraryChatAgent>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<LibraryChatOptions>>().Value;
+            return ActivatorUtilities.CreateInstance<LibraryChatAgent>(
+                serviceProvider,
+                CreateChatClient(serviceProvider, chatModel, options.AnswerGeneration));
+        });
+        services.AddTransient<IKeywordExtractor>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<KeywordExtractionOptions>>();
+            var keywordOptions = options.Value;
+            var chatClient = CreateChatClient(
+                serviceProvider,
+                chatModel,
+                new LibraryChatStageOptions
+                {
+                    MaxOutputTokens = keywordOptions.MaxGeneratedTokens,
+                    ReasoningEffort = ReasoningEffort.None
+                },
+                ChatResponseFormat.Json);
+            return new KeywordExtractor(chatClient, options);
+        });
 
         services.AddMarten(options =>
             {
@@ -136,5 +183,44 @@ public static class DependencyInjection
         services.AddScoped<IPdfTextExtractor, PdfPigTextExtractor>();
 
         return services;
+    }
+
+    private static bool IsValidStageOptions(LibraryChatStageOptions? options) =>
+        options is not null &&
+        options.MaxOutputTokens > 0 &&
+        Enum.IsDefined(options.ReasoningEffort);
+
+    private static IChatClient CreateChatClient(
+        IServiceProvider serviceProvider,
+        string model,
+        LibraryChatStageOptions? options = null,
+        ChatResponseFormat? responseFormat = null)
+    {
+        var client = new OllamaApiClient(
+            serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("OllamaChat"))
+        {
+            SelectedModel = model
+        };
+        if (options is null && responseFormat is null)
+        {
+            return client;
+        }
+
+        IChatClient chatClient = client;
+        return chatClient.AsBuilder()
+            .ConfigureOptions(chatOptions =>
+            {
+                if (options is not null)
+                {
+                    chatOptions.MaxOutputTokens = options.MaxOutputTokens;
+                    chatOptions.Reasoning = new ReasoningOptions { Effort = options.ReasoningEffort };
+                }
+
+                if (responseFormat is not null)
+                {
+                    chatOptions.ResponseFormat = responseFormat;
+                }
+            })
+            .Build();
     }
 }

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using ErrorOr;
 using MagicLibrary.Application.Chat;
+using MagicLibrary.Application.Conversations;
 using MagicLibrary.Core.Aggregates;
 using Xunit;
 

@@ -56,7 +56,7 @@ public sealed class KeywordExtractorTests
     }
 
     [Fact]
-    public async Task ExtractAsync_UsesConfiguredJsonOptionsAndPrompt()
+    public async Task ExtractAsync_UsesPromptWithoutOverridingClientOptions()
     {
         const string text = "Source chunk.";
         IEnumerable<ChatMessage>? receivedMessages = null;
@@ -74,9 +74,7 @@ public sealed class KeywordExtractorTests
         var message = Assert.Single(receivedMessages!);
         Assert.Equal(ChatRole.User, message.Role);
         Assert.Contains(text, message.Text, StringComparison.Ordinal);
-        Assert.Equal(128, receivedOptions?.MaxOutputTokens);
-        Assert.Equal(ReasoningEffort.None, receivedOptions?.Reasoning?.Effort);
-        Assert.Same(ChatResponseFormat.Json, receivedOptions?.ResponseFormat);
+        Assert.Null(receivedOptions);
     }
 
     [Fact]

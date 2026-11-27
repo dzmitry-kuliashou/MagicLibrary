@@ -18,7 +18,6 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(CreateBookCommandValidator).Assembly);
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ILibraryConversationOrchestrator, LibraryConversationOrchestrator>();
-        services.AddScoped<ILibraryChatTools, LibraryChatTools>();
         services.AddSingleton<IIndexingJobBackgroundProcessor, IndexingJobBackgroundProcessor>();
         services.AddScoped<IndexingWorker>();
         services.AddScoped<IndexingScenarioFactory>();

@@ -1,9 +1,10 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using ErrorOr;
+using MagicLibrary.Application.Chat;
 using MagicLibrary.Core.Aggregates;
 
-namespace MagicLibrary.Application.Chat;
+namespace MagicLibrary.Application.Conversations;
 
 public abstract class StreamedAiConversation
 {

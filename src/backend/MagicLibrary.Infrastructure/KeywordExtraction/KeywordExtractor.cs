@@ -42,12 +42,7 @@ public sealed class KeywordExtractor(
 
         var response = await chatClient.GetResponseAsync(
             [new ChatMessage(ChatRole.User, prompt)],
-            new ChatOptions
-            {
-                MaxOutputTokens = maxGeneratedTokens,
-                Reasoning = new ReasoningOptions { Effort = ReasoningEffort.None },
-                ResponseFormat = ChatResponseFormat.Json
-            },
+            null,
             cancellationToken);
 
         if (string.IsNullOrWhiteSpace(response.Text))

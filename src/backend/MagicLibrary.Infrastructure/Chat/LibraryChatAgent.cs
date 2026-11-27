@@ -1,23 +1,15 @@
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using MagicLibrary.Application.Chat;
 using MagicLibrary.Core.ValueObjects;
-using MagicLibrary.Infrastructure.KeywordExtraction;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Options;
 
 namespace MagicLibrary.Infrastructure.Chat;
 
 public sealed class LibraryChatAgent(
     IChatClient chatClient,
-    ILibraryChatTools libraryChatTools,
-    IOptions<KeywordExtractionOptions> keywordExtractionOptions) : ILibraryChatAgent
+    ILibraryChatSearch libraryChatSearch,
+    IConversationContextSelector contextSelector) : ILibraryChatAgent
 {
-    private readonly IChatClient _functionInvokingChatClient = chatClient
-        .AsBuilder()
-        .UseFunctionInvocation()
-        .Build();
-
     public async IAsyncEnumerable<LibraryChatAgentUpdate> StreamAsync(
         IReadOnlyList<Message> messages,
         Guid? requestedBookId,
@@ -25,89 +17,39 @@ public sealed class LibraryChatAgent(
     {
         ArgumentNullException.ThrowIfNull(messages);
 
-        var allowedBookIds = new ConcurrentDictionary<Guid, byte>(
-            messages
-                .Where(message => message.Role == MessageRole.Assistant)
-                .SelectMany(message => message.SourceReferences)
+        var context = await contextSelector.SelectAsync(messages, cancellationToken);
+        IReadOnlyCollection<Guid>? bookIds;
+        if (requestedBookId is { } explicitBookId)
+        {
+            bookIds = [explicitBookId];
+        }
+        else
+        {
+            var latestUserMessage = context.Messages.Last(message => message.Role == MessageRole.User);
+            var bookMatches = await libraryChatSearch.SearchBooksAsync(
+                latestUserMessage.Content,
+                cancellationToken);
+            var selectedBookIds = context.PriorSourceReferences
                 .Select(sourceReference => sourceReference.BookId)
+                .Concat(bookMatches)
                 .Distinct()
-                .Select(bookId => new KeyValuePair<Guid, byte>(bookId, 0)));
-        var sourceReferences = new ConcurrentDictionary<SourceReference, byte>();
-
-        async Task<IReadOnlyList<Guid>> SearchBooksAsync(
-            IReadOnlyList<string> terms,
-            CancellationToken functionCancellationToken)
-        {
-            var matches = await libraryChatTools.SearchBooksAsync(terms, functionCancellationToken);
-            foreach (var bookId in matches)
-            {
-                allowedBookIds.TryAdd(bookId, 0);
-            }
-
-            return matches;
+                .ToArray();
+            bookIds = selectedBookIds.Length > 0 ? selectedBookIds : null;
         }
 
-        async Task<IReadOnlyList<RetrievedLibraryChunk>> SearchChunksAsync(
-            string query,
-            IReadOnlyList<Guid>? bookIds,
-            CancellationToken functionCancellationToken)
-        {
-            IReadOnlyCollection<Guid>? effectiveBookIds;
-            if (requestedBookId is { } explicitBookId)
-            {
-                effectiveBookIds = [explicitBookId];
-            }
-            else if (bookIds is null || bookIds.Count == 0)
-            {
-                effectiveBookIds = null;
-            }
-            else
-            {
-                var validatedBookIds = bookIds
-                    .Where(allowedBookIds.ContainsKey)
-                    .Distinct()
-                    .ToArray();
-                effectiveBookIds = validatedBookIds.Length > 0
-                    ? validatedBookIds
-                    : null;
-            }
+        var chunks = await libraryChatSearch.SearchChunksAsync(
+            context.RetrievalQuery,
+            bookIds,
+            cancellationToken);
+        var sourceReferences = chunks
+            .Select(chunk => chunk.SourceReference)
+            .OfType<SourceReference>()
+            .Distinct()
+            .ToArray();
 
-            var chunks = await libraryChatTools.SearchChunksAsync(
-                query,
-                effectiveBookIds,
-                functionCancellationToken);
-            foreach (var sourceReference in chunks
-                         .Select(chunk => chunk.SourceReference)
-                         .OfType<SourceReference>())
-            {
-                sourceReferences.TryAdd(sourceReference, 0);
-            }
-
-            return chunks;
-        }
-
-        var maxKeywordResults = keywordExtractionOptions.Value.MaxResults;
-        var searchBooksFunction = AIFunctionFactory.Create(
-            (Func<IReadOnlyList<string>, CancellationToken, Task<IReadOnlyList<Guid>>>)SearchBooksAsync,
-            "search_books",
-            $"Search books by title, author, or keyword. Preserve exact title and author terms when applicable, plus up to {maxKeywordResults} " +
-            $"keyword phrases of no more than {KeywordExtractionOptions.MaximumPhraseWords} words each, ordered by relevance. Return matching book IDs.");
-        var searchChunksFunction = AIFunctionFactory.Create(
-            (Func<string, IReadOnlyList<Guid>?, CancellationToken,
-                Task<IReadOnlyList<RetrievedLibraryChunk>>>)SearchChunksAsync,
-            "search_chunks",
-            "Retrieve relevant document chunks using a standalone query and optional book IDs. Use null or an empty list for the whole library. " +
-            "Each result's Content is the evidence text; SourceReference contains citation metadata only.");
-        var chatOptions = new ChatOptions
-        {
-            Tools = requestedBookId.HasValue
-                ? [searchChunksFunction]
-                : [searchBooksFunction, searchChunksFunction]
-        };
-
-        await foreach (var update in _functionInvokingChatClient.GetStreamingResponseAsync(
-                           MapRetrievalMessages(messages),
-                           chatOptions,
+        await foreach (var update in chatClient.GetStreamingResponseAsync(
+                           MapAnswerMessages(context.Messages, chunks),
+                           null,
                            cancellationToken))
         {
             if (!string.IsNullOrEmpty(update.Text))
@@ -116,10 +58,12 @@ public sealed class LibraryChatAgent(
             }
         }
 
-        yield return new LibraryChatAgentUpdate(null, sourceReferences.Keys.ToArray());
+        yield return new LibraryChatAgentUpdate(null, sourceReferences);
     }
 
-    private static ChatMessage[] MapRetrievalMessages(IReadOnlyList<Message> messages)
+    private static ChatMessage[] MapAnswerMessages(
+        IReadOnlyList<Message> messages,
+        IReadOnlyList<RetrievedLibraryChunk> chunks)
     {
         var mappedMessages = new List<ChatMessage>
         {
@@ -143,6 +87,23 @@ public sealed class LibraryChatAgent(
 
                 return new ChatMessage(MapRole(message.Role), content);
             }));
+
+        var evidence = chunks.Count == 0
+            ? "No document chunks were retrieved."
+            : string.Join(
+                Environment.NewLine + Environment.NewLine,
+                chunks.Select((chunk, index) =>
+                {
+                    var sourceReference = chunk.SourceReference is { } reference
+                        ? $"bookId={reference.BookId}; title={reference.BookTitle}; " +
+                          $"page={reference.PageNumber}; chunkId={reference.ChunkId}"
+                        : "unavailable";
+                    return $"Chunk {index + 1} content:{Environment.NewLine}{chunk.Content}" +
+                           $"{Environment.NewLine}Source reference metadata: {sourceReference}";
+                }));
+        mappedMessages.Add(new ChatMessage(
+            ChatRole.System,
+            $"Retrieved document chunks (content is evidence; source references are citation metadata):{Environment.NewLine}{evidence}"));
 
         return mappedMessages.ToArray();
     }

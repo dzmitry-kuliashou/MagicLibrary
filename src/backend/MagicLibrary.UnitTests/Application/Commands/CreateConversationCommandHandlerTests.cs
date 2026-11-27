@@ -39,10 +39,12 @@ public sealed class CreateConversationCommandHandlerTests
         var message = Assert.Single(result.Value.Messages);
         Assert.Equal(MessageRole.System, message.Role);
         Assert.Equal(LibraryChatInstructions.SystemMessage, message.Content);
-        Assert.Contains("retrieved document chunks", message.Content);
-        Assert.Contains("search_books tool's limit and phrase-length rules", message.Content);
+        Assert.Contains("retrieved document chunk content", message.Content);
+        Assert.Contains("not factual evidence", message.Content);
         Assert.Contains("does not provide enough information", message.Content);
         Assert.Contains("politely decline", message.Content);
+        Assert.DoesNotContain("search_books", message.Content);
+        Assert.DoesNotContain("search_chunks", message.Content);
         writeRepository.Verify(
             repository => repository.CreateAsync(
                 It.IsAny<Conversation>(),

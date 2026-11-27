@@ -1,22 +1,37 @@
 using MagicLibrary.Application.ConfigurationOptions;
+using MagicLibrary.Application.Chat;
 using MagicLibrary.Application.EmbeddingGeneration;
 using MagicLibrary.Application.Queries;
 using MagicLibrary.Core.ValueObjects;
 using MediatR;
 using Microsoft.Extensions.Options;
 
-namespace MagicLibrary.Application.Chat;
+namespace MagicLibrary.Infrastructure.Chat;
 
-public sealed class LibraryChatTools(
+public sealed class LibraryChatSearch(
     ISender sender,
     IEmbeddingGenerator embeddingGenerator,
-    IOptions<VectorSearchOptions> vectorSearchOptions)
-    : ILibraryChatTools
+    IOptions<VectorSearchOptions> vectorSearchOptions,
+    IBookSearchTermExtractor bookSearchTermExtractor)
+    : ILibraryChatSearch
 {
     public async Task<IReadOnlyList<Guid>> SearchBooksAsync(
-        IReadOnlyList<string> terms,
+        string latestUserMessage,
         CancellationToken cancellationToken)
     {
+        var searchTerms = await bookSearchTermExtractor.ExtractAsync(
+            latestUserMessage,
+            cancellationToken);
+        if (!searchTerms.HasSearchTerms)
+        {
+            return [];
+        }
+
+        var terms = searchTerms.ExactTitleTerms
+            .Concat(searchTerms.ExactAuthorTerms)
+            .Concat(searchTerms.KeywordPhrases)
+            .ToArray();
+
         var result = await sender.Send(new SearchBooksQuery(terms), cancellationToken);
         return result.BookIds;
     }

@@ -6,6 +6,7 @@ using MagicLibrary.Application.Errors;
 using MagicLibrary.Application.Queries;
 using MagicLibrary.Contract.Responses;
 using MagicLibrary.Core.Aggregates;
+using MagicLibrary.Infrastructure.Chat;
 using MediatR;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -13,56 +14,68 @@ using Xunit;
 
 namespace MagicLibrary.UnitTests.Application.Chat;
 
-public sealed class LibraryChatToolsTests
+public sealed class LibraryChatSearchTests
 {
     private readonly Mock<ISender> _sender = new();
     private readonly Mock<IEmbeddingGenerator> _embeddingGenerator = new();
+    private readonly Mock<IBookSearchTermExtractor> _bookSearchTermExtractor = new();
 
     [Fact]
-    public async Task SearchBooksAsync_ValidTerms_ForwardsQueryAndCancellationToken()
+    public async Task SearchBooksAsync_ExtractedTerms_ForwardsQueryAndCancellationToken()
     {
-        IReadOnlyList<string> terms = ["The Hobbit", "Tolkien"];
+        const string latestUserMessage = "Find The Hobbit by Tolkien.";
+        var terms = new BookSearchTerms(
+            ["The Hobbit"],
+            ["Tolkien"],
+            ["fantasy adventure"]);
         IReadOnlyList<Guid> expectedBookIds = [Guid.NewGuid(), Guid.NewGuid()];
         var response = new SearchBooksResponse(expectedBookIds);
         using var cancellationSource = new CancellationTokenSource();
         var cancellationToken = cancellationSource.Token;
+        _bookSearchTermExtractor
+            .Setup(extractor => extractor.ExtractAsync(latestUserMessage, cancellationToken))
+            .ReturnsAsync(terms);
         _sender
             .Setup(sender => sender.Send(
-                It.Is<SearchBooksQuery>(query => ReferenceEquals(query.Terms, terms)),
+                It.Is<SearchBooksQuery>(query =>
+                    query.Terms != null &&
+                    query.Terms.SequenceEqual(new[] { "The Hobbit", "Tolkien", "fantasy adventure" })),
                 cancellationToken))
             .ReturnsAsync(response);
-        var tools = CreateTools();
+        var search = CreateSearch();
 
-        var result = await tools.SearchBooksAsync(terms, cancellationToken);
+        var result = await search.SearchBooksAsync(latestUserMessage, cancellationToken);
 
         Assert.Same(expectedBookIds, result);
         _sender.Verify(
             sender => sender.Send(
-                It.Is<SearchBooksQuery>(query => ReferenceEquals(query.Terms, terms)),
+                It.Is<SearchBooksQuery>(query =>
+                    query.Terms != null &&
+                    query.Terms.SequenceEqual(new[] { "The Hobbit", "Tolkien", "fantasy adventure" })),
                 cancellationToken),
+            Times.Once);
+        _bookSearchTermExtractor.Verify(
+            extractor => extractor.ExtractAsync(latestUserMessage, cancellationToken),
             Times.Once);
     }
 
     [Fact]
-    public async Task SearchBooksAsync_NullTerms_ForwardsToQueryHandler()
+    public async Task SearchBooksAsync_NoBookSearchTerms_SkipsQueryDispatch()
     {
-        IReadOnlyList<Guid> expectedBookIds = Array.Empty<Guid>();
-        var response = new SearchBooksResponse(expectedBookIds);
-        _sender
-            .Setup(sender => sender.Send(
-                It.Is<SearchBooksQuery>(query => query.Terms == null),
-                CancellationToken.None))
-            .ReturnsAsync(response);
-        var tools = CreateTools();
+        const string latestUserMessage = "Recommend a book.";
+        _bookSearchTermExtractor
+            .Setup(extractor => extractor.ExtractAsync(latestUserMessage, CancellationToken.None))
+            .ReturnsAsync(BookSearchTerms.Empty);
+        var search = CreateSearch();
 
-        var result = await tools.SearchBooksAsync(null!, CancellationToken.None);
+        var result = await search.SearchBooksAsync(latestUserMessage, CancellationToken.None);
 
-        Assert.Same(expectedBookIds, result);
+        Assert.Empty(result);
         _sender.Verify(
             sender => sender.Send(
-                It.Is<SearchBooksQuery>(query => query.Terms == null),
-                CancellationToken.None),
-            Times.Once);
+                It.IsAny<SearchBooksQuery>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -106,7 +119,7 @@ public sealed class LibraryChatToolsTests
                 It.Is<GetBookByIdQuery>(request => request.Id == book.Id),
                 cancellationToken))
             .ReturnsAsync((ErrorOr<Book>)book);
-        var tools = CreateTools(topK);
+        var tools = CreateSearch(topK);
 
         var result = await tools.SearchChunksAsync(query, bookIds, cancellationToken);
 
@@ -166,7 +179,7 @@ public sealed class LibraryChatToolsTests
                 It.Is<GetBookByIdQuery>(request => request.Id == bookId),
                 cancellationToken))
             .ReturnsAsync((ErrorOr<Book>)BookErrors.BookNotFound(bookId));
-        var tools = CreateTools();
+        var tools = CreateSearch();
 
         var result = await tools.SearchChunksAsync(query, [bookId], cancellationToken);
 
@@ -186,7 +199,7 @@ public sealed class LibraryChatToolsTests
     [InlineData("  ")]
     public async Task SearchChunksAsync_UndefinedQuery_ReturnsEmptyWithoutEmbedding(string? query)
     {
-        var tools = CreateTools();
+        var tools = CreateSearch();
 
         var result = await tools.SearchChunksAsync(query!, null, CancellationToken.None);
 
@@ -195,11 +208,12 @@ public sealed class LibraryChatToolsTests
         _embeddingGenerator.VerifyNoOtherCalls();
     }
 
-    private LibraryChatTools CreateTools(int topK = 5)
+    private LibraryChatSearch CreateSearch(int topK = 5)
     {
-        return new LibraryChatTools(
+        return new LibraryChatSearch(
             _sender.Object,
             _embeddingGenerator.Object,
-            Options.Create(new VectorSearchOptions { TopK = topK }));
+            Options.Create(new VectorSearchOptions { TopK = topK }),
+            _bookSearchTermExtractor.Object);
     }
 }
