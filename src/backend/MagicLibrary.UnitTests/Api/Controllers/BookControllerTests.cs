@@ -100,6 +100,31 @@ public sealed class BookControllerTests
     }
 
     [Fact]
+    public async Task ListBookConversations_ReturnsResponseAndSendsQuery()
+    {
+        var bookId = Guid.NewGuid();
+        IReadOnlyList<ConversationSummaryResponse> expectedResponse =
+            Array.Empty<ConversationSummaryResponse>();
+        var sender = new Mock<ISender>();
+        sender
+            .Setup(service => service.Send(
+                It.Is<ListBookConversationsQuery>(query => query.BookId == bookId),
+                CancellationToken.None))
+            .ReturnsAsync(expectedResponse);
+        var controller = new BookController(sender.Object);
+
+        var result = await controller.ListBookConversations(bookId, CancellationToken.None);
+
+        var response = Assert.IsType<OkObjectResult>(result);
+        Assert.Same(expectedResponse, response.Value);
+        sender.Verify(
+            service => service.Send(
+                It.Is<ListBookConversationsQuery>(query => query.BookId == bookId),
+                CancellationToken.None),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task Search_ReturnsBookIdsResponseAndSendsTerms()
     {
         var terms = new[] { "title", "keyword" };

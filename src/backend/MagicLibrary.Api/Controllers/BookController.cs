@@ -37,6 +37,14 @@ public sealed class BookController(ISender sender) : ControllerBase
                 book.IndexingStatus.ToString())));
     }
 
+    [HttpGet("/book/{id:guid}/conversations")]
+    [ProducesResponseType(typeof(IReadOnlyList<ConversationSummaryResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListBookConversations(Guid id, CancellationToken cancellationToken)
+    {
+        var response = await sender.Send(new ListBookConversationsQuery(id), cancellationToken);
+        return Ok(response);
+    }
+
     [HttpPost("books:search")]
     [ProducesResponseType(typeof(SearchBooksResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> Search(

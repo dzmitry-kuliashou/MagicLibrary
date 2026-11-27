@@ -25,4 +25,17 @@ internal sealed class ConversationReadRepository(IQuerySession querySession)
 
         return documents.Select(ToAggregate).ToArray();
     }
+
+    public async Task<IReadOnlyList<Conversation>> ListBookConversationsAsync(
+        Guid bookId,
+        CancellationToken cancellationToken)
+    {
+        var documents = await _querySession.Query<ConversationDocument>()
+            .Where(document => document.BookId == bookId)
+            .OrderByDescending(document => document.CreatedAt)
+            .Take(10)
+            .ToListAsync(cancellationToken);
+
+        return documents.Select(ToAggregate).ToArray();
+    }
 }
